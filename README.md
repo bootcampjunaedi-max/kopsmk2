@@ -1,7 +1,7 @@
 # SIMPEL-KOP — Frontend (GitHub Pages)
 
 Sistem Informasi Simpan Pinjam & Barang — Koperasi Konsumen Syariah SMK Islam PB. Soedirman 2.
-Versi 1.4.2: frontend statis di GitHub Pages, backend Google Apps Script sebagai REST API (JSON).
+Versi 1.4.5: frontend statis di GitHub Pages, backend Google Apps Script sebagai REST API (JSON).
 
 ## Struktur
 
@@ -26,7 +26,7 @@ Backend (`Kode.gs`, `appsscript.json`) **tidak** disimpan di repository ini — 
 | GET | `?action=verify&code=NOMOR~KODE` | Verifikasi keaslian dokumen (publik) |
 | POST | `{"action":"login","username","password","remember"}` | Masuk → token sesi |
 | POST | `{"action":"logout","token"}` | Keluar |
-| POST | `{"action":"<aksi>","token","payload"}` | Aksi ber-RBAC: `bootstrap`, `sync`, `anggota.simpan`, `anggota.hapus` (admin), `simpanan.simpan`, `pinjaman.ajukan`, `angsuran.bayar`, `dokumen.pdf`, dll. |
+| POST | `{"action":"<aksi>","token","payload"}` | Aksi ber-RBAC: `bootstrap`, `sync`, `anggota.simpan`, `anggota.hapus` (admin), `simpanan.simpan`, `pinjaman.ajukan`, `angsuran.bayar`, `angsuran.potongGaji`, `dokumen.pdf`, dll. |
 
 POST selalu dikirim dengan `Content-Type: text/plain;charset=utf-8` agar browser tidak mengirim CORS preflight. Token sesi hanya ada di body, tidak pernah di URL.
 

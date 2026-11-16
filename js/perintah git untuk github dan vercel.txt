@@ -1,0 +1,10 @@
+dir
+git config --global user.name "Nama Anda"
+git config --global user.email "email-akun-github@contoh.com
+
+git init
+git add .
+git commit -m "Rilis Koperasi SMK2"
+git branch -M main
+git remote add origin  https://github.com/bootcampjunaedi-max/kopsmk2.git
+git push -u origin main

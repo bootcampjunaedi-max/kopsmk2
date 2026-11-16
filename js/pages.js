@@ -27,7 +27,7 @@ Pages.dashboard = {
     const nama = (S.user.nama || '').split(',')[0];
     const lunasTh = S.db.pinjaman.filter(l => l.Status === 'lunas').length;
     const pipe = [['01. Pengajuan', D.pending.length, 'Formulir masuk', "Pages.pinjaman.tab('menunggu')"], ['02. Persetujuan', D.approved.length, 'Siap akad & cair', "Pages.pinjaman.tab('disetujui')"],
-      ['03. Akad Berjalan', D.berjalan.length, 'Potong payroll', "Pages.pinjaman.tab('berjalan')"], ['04. Menunggak', D.tunggakan.length, 'Perlu tindak lanjut', "Pages.angsuran.tab('tunggakan')"], ['05. Lunas', lunasTh, 'Sertifikat bebas', "Pages.pinjaman.tab('lunas')"]];
+      ['03. Akad Berjalan', D.berjalan.length, 'Potong gaji tgl ' + tglPotong(), "Pages.pinjaman.tab('berjalan')"], ['04. Menunggak', D.tunggakan.length, 'Perlu tindak lanjut', "Pages.angsuran.tab('tunggakan')"], ['05. Lunas', lunasTh, 'Sertifikat bebas', "Pages.pinjaman.tab('lunas')"]];
     const maxPipe = Math.max(1, ...pipe.map(p => p[1]));
     const ins = [];
     ins.push(`Simpanan anggota ${growth >= 0 ? 'tumbuh' : 'turun'} <b>${Math.abs(growth).toFixed(1).replace('.', ',')}%</b> dibanding bulan lalu menjadi <b>${fmtRp(sp.total)}</b>.`);
@@ -73,7 +73,7 @@ Pages.dashboard = {
               { h: 'Fasilitas', v: l => jenisBadge(l) + `<div class="cell-sub">${esc(loanLabel(l))}</div>` },
               { h: 'Pengajuan', cls: 'num', v: l => `<b>${fmtRp(l.Pokok)}</b><div class="cell-sub">${l.Tenor} bulan</div>` },
               { h: '', cls: 'num', label: 'Aksi', v: l => `<button class="btn btn-sm btn-soft" ${on('Nav.go', 'pinjaman-detail', { id: l.ID_Pinjaman })}>Tinjau</button>` }] })}</div>
-        <div class="card-k flush"><div class="card-head card-pad-x pt-3 mb-2"><div><h3><i class="bi bi-calendar2-week"></i> Jatuh Tempo Terdekat</h3><p>Periode potong payroll tanggal ${S.settings.TGL_JATUH_TEMPO || 10}</p></div><button class="btn btn-sm btn-ghost" ${on('Nav.go', 'angsuran')}>Loket <i class="bi bi-arrow-right"></i></button></div>
+        <div class="card-k flush"><div class="card-head card-pad-x pt-3 mb-2"><div><h3><i class="bi bi-calendar2-week"></i> Jatuh Tempo Terdekat</h3><p>Dipotong gaji setiap tanggal ${tglPotong()}</p></div><button class="btn btn-sm btn-ghost" ${on('Nav.go', 'angsuran')}>Loket <i class="bi bi-arrow-right"></i></button></div>
           ${Tbl.html({ id: 'dash-due', rows: D.upcoming.slice(0, 6), noPage: true, emptyIcon: 'bi-calendar-check', emptyTitle: 'Tidak ada tagihan berjalan',
             rowAttr: u => on('Pages.angsuran.open', u.loan.ID_Pinjaman),
             cols: [{ h: 'Anggota', main: true, v: u => `<div class="cell-main">${esc(angName(u.loan.ID_Anggota))}</div><div class="cell-sub">Ke-${u.row.Cicilan_Ke} / ${u.loan.Tenor} · ${fmtDate(u.row.Jatuh_Tempo)}</div>` },
@@ -538,7 +538,7 @@ Pages.simpanan = {
       <div class="fg"><label>Jenis simpanan</label><select class="inp" name="Jenis" onchange="Pages.simpanan.info('${px}')">${optList([['wajib', 'Simpanan Wajib'], ['sukarela', 'Simpanan Sukarela / Wadiah'], ['pokok', 'Simpanan Pokok']], d.jenis || 'wajib')}</select></div>
       <div class="fg"><label>Nominal <span class="req">*</span></label><div class="inp-group"><span class="addon rp">Rp</span><input class="inp money-inp" name="Jumlah" data-money required inputmode="numeric" placeholder="0" value="${d.jumlah ? fmtNum(d.jumlah) : ''}" data-msg="Nominal wajib diisi"></div>
         <div class="chips mt-1">${[50000, 100000, 250000, 500000].map(v => `<button type="button" class="chip-btn" onclick="this.form.Jumlah.value='${fmtNum(v)}'">${fmtJt(v)}</button>`).join('')}</div><span class="err-msg"></span></div>
-      <div class="form-grid cols-2"><div class="fg"><label>Metode</label><select class="inp" name="Metode">${optList([['tunai', 'Tunai di loket'], ['payroll', 'Potong payroll'], ['transfer', 'Transfer bank']], 'tunai')}</select></div>
+      <div class="form-grid cols-2"><div class="fg"><label>Metode</label><select class="inp" name="Metode">${optList([['tunai', 'Tunai di loket'], ['payroll', 'Potong gaji'], ['transfer', 'Transfer bank']], 'tunai')}</select></div>
         <div class="fg"><label>Tanggal</label><input class="inp" type="date" name="Tanggal" value="${T()}" max="${T()}" required></div></div>
       <div class="fg"><label>Keterangan</label><input class="inp" name="Keterangan" placeholder="opsional" maxlength="200"></div>
       <label class="check"><input type="checkbox" name="cetak" checked> Cetak bukti setelah tersimpan</label>
@@ -611,7 +611,7 @@ Pages.pinjaman = {
     const kol = Rep.kolektibilitas();
     const tung = new Set(D.tunggakan.map(t => t.loan.ID_Pinjaman));
     const c = k => L.filter(l => Pages.pinjaman.match(l, k, tung)).length;
-    el.innerHTML = pageHead({ crumbs: [['Dashboard', 'dashboard'], ['Pembiayaan']], title: 'Daftar Pinjaman & Pembiayaan', desc: 'Kelola portofolio pembiayaan syariah: qardh/uang (bunga ' + S.settings.BUNGA_UANG + '% flat) dan murabahah barang (' + S.settings.BUNGA_BARANG + '% flat), status persetujuan, dan jadwal tagihan.',
+    el.innerHTML = pageHead({ crumbs: [['Dashboard', 'dashboard'], ['Pembiayaan']], title: 'Daftar Pinjaman & Pembiayaan', desc: 'Kelola portofolio pembiayaan syariah: qardh/uang (bunga ' + fmtPct(Calc.rate('uang')) + '% dari pokok) dan murabahah barang (margin ' + fmtPct(Calc.rate('barang')) + '% dari harga barang), status persetujuan, dan jadwal tagihan.',
       actions: `<button class="btn btn-outline" onclick="Pages.pinjaman.excel()"><i class="bi bi-file-earmark-excel"></i> Export Excel</button><button class="btn btn-outline" onclick="Docs.laporan('pinjaman')"><i class="bi bi-printer"></i> Cetak Rekap</button>${canWrite() ? `<button class="btn btn-primary" ${on('Nav.go', 'pinjaman-form')}><i class="bi bi-plus-circle"></i> Pengajuan Pinjaman Baru</button>` : ''}` }) + `
       <div class="grid g-kpi mb-3">
         ${kpi({ label: 'Plafon Disalurkan ' + y, value: rp(sum(cairTh, 'Pokok')), icon: 'bi-cash-stack', sub: cairTh.length + ' akad cair tahun ini' })}
@@ -652,7 +652,7 @@ Pages.pinjaman = {
         { h: 'Anggota / Debitur', v: l => `<div class="person">${avatar(angName(l.ID_Anggota))}<div><div class="cell-main">${esc(angName(l.ID_Anggota))}</div><div class="cell-sub">${esc((D.anggota[l.ID_Anggota] || {}).Jabatan || '')} · ${esc(l.ID_Anggota)}</div></div></div>` },
         { h: 'Fasilitas & Komoditas', v: l => jenisBadge(l) + `<div class="cell-sub ellipsis" style="max-width:200px">${esc(loanLabel(l))}</div>` },
         { h: 'Plafon Pokok', cls: 'num', v: l => `<b>${fmtRp(l.Pokok)}</b>` },
-        { h: 'Tenor', cls: 'num', v: l => `${l.Tenor} bln<div class="cell-sub">${l.Bunga_Persen}%/bln</div>` },
+        { h: 'Tenor', cls: 'num', v: l => `${l.Tenor} bln<div class="cell-sub">${fmtPct(Calc.loanPct(l))}% total</div>` },
         { h: 'Angsuran/bln', cls: 'num', v: l => fmtRp(l.Angsuran_per_Bulan) },
         { h: 'Sisa Tagihan', cls: 'num', v: l => `<b class="${tung.has(l.ID_Pinjaman) ? 'text-danger' : l.Status === 'berjalan' ? 'text-primary' : ''}">${fmtRp(['diajukan', 'disetujui', 'ditolak', 'dibatalkan'].includes(l.Status) ? 0 : l.Sisa_Tagihan)}</b>${l.Status === 'berjalan' ? `<div class="cell-sub">${paidCount(l)}/${l.Tenor} lunas</div>` : ''}` },
         { h: 'Status', v: loanBadge }],
@@ -660,7 +660,7 @@ Pages.pinjaman = {
   },
   excel() {
     Docs.excel('Portofolio_Pembiayaan_' + T(), [{ name: 'Pinjaman', rows: Pages.pinjaman.rows().map(l => ({ 'ID Pinjaman': l.ID_Pinjaman, 'No Perjanjian': l.No_Perjanjian, 'ID Anggota': l.ID_Anggota, Nama: angName(l.ID_Anggota), Jenis: l.Jenis, Komoditas: loanLabel(l),
-      'Tgl Pengajuan': l.Tgl_Pengajuan, 'Tgl Cair': l.Tgl_Cair, Pokok: l.Pokok, 'Bunga %/bln': l.Bunga_Persen, Tenor: l.Tenor, 'Total Bunga': l.Total_Bunga, 'Total Tagihan': l.Total_Tagihan, 'Angsuran/bln': l.Angsuran_per_Bulan, 'Sisa Tagihan': l.Sisa_Tagihan, Status: l.Status })) }]);
+      'Tgl Pengajuan': l.Tgl_Pengajuan, 'Tgl Cair': l.Tgl_Cair, Pokok: l.Pokok, 'Bunga % (total dari pokok)': Calc.loanPct(l), Tenor: l.Tenor, 'Total Bunga': l.Total_Bunga, 'Total Tagihan': l.Total_Tagihan, 'Angsuran/bln': l.Angsuran_per_Bulan, 'Sisa Tagihan': l.Sisa_Tagihan, Status: l.Status })) }]);
   }
 };
 
@@ -679,12 +679,12 @@ const LoanForm = {
       ${member ? '' : `<div class="card-k"><div class="fg"><label>Anggota pemohon <span class="req">*</span></label>${anggotaPicker('lfAng', presetId || d.lfAngId || '', { onchange: 'LoanForm.update()' })}<div id="lfAngInfo" class="hint"></div><span class="err-msg"></span></div></div>`}
       <div class="card-k"><div class="row-between mb-2"><span class="label">Fasilitas pembiayaan</span><span class="xs fw-600 text-primary">Sesuai prinsip syariah</span></div>
         <div class="stack" style="gap:10px">
-          <label class="choice"><input type="radio" name="Jenis" value="uang" ${jenis === 'uang' ? 'checked' : ''}><span class="c-body"><span class="c-icon"><i class="bi bi-cash-coin"></i></span><span style="flex:1"><b>Pinjaman Uang ${badge('Qardh', 'b-gold')}</b><small class="text-primary fw-600">Bunga flat ${st0.BUNGA_UANG}% / bulan</small><small>Kebutuhan tunai multiguna • plafon s.d. ${fmtRp(st0.PLAFON_UANG)}</small></span><span class="c-check"><i class="bi bi-check"></i></span></span></label>
-          <label class="choice"><input type="radio" name="Jenis" value="barang" ${jenis === 'barang' ? 'checked' : ''}><span class="c-body"><span class="c-icon"><i class="bi bi-box-seam"></i></span><span style="flex:1"><b>Pinjaman Barang ${badge('Murabahah', 'b-gray')}</b><small class="text-primary fw-600">Margin flat ${st0.BUNGA_BARANG}% / bulan</small><small>Katalog elektronik, seragam & kebutuhan sekolah</small></span><span class="c-check"><i class="bi bi-check"></i></span></span></label>
+          <label class="choice"><input type="radio" name="Jenis" value="uang" ${jenis === 'uang' ? 'checked' : ''}><span class="c-body"><span class="c-icon"><i class="bi bi-cash-coin"></i></span><span style="flex:1"><b>Pinjaman Uang ${badge('Qardh', 'b-gold')}</b><small class="text-primary fw-600">Bunga ${fmtPct(Calc.rate('uang'))}% dari besar pinjaman • flat tiap bulan</small><small>Kebutuhan tunai multiguna • plafon s.d. ${fmtRp(st0.PLAFON_UANG)}</small></span><span class="c-check"><i class="bi bi-check"></i></span></span></label>
+          <label class="choice"><input type="radio" name="Jenis" value="barang" ${jenis === 'barang' ? 'checked' : ''}><span class="c-body"><span class="c-icon"><i class="bi bi-box-seam"></i></span><span style="flex:1"><b>Pinjaman Barang ${badge('Murabahah', 'b-gray')}</b><small class="text-primary fw-600">Margin ${fmtPct(Calc.rate('barang'))}% dari harga barang • flat tiap bulan</small><small>Katalog elektronik, seragam & kebutuhan sekolah</small></span><span class="c-check"><i class="bi bi-check"></i></span></span></label>
         </div></div>
       <div class="card-k form-grid">
         <div id="lfUang" class="fg"><label>Nominal pengajuan pinjaman <span class="req">*</span></label><div class="inp-group"><span class="addon rp">Rp</span><input class="inp money-inp" name="Pokok" data-money inputmode="numeric" placeholder="0" value="${d.Pokok ? fmtNum(d.Pokok) : ''}"></div>
-          <div class="row-between xs mt-1"><span><i class="bi bi-shield-check text-primary"></i> Batas plafon guru/staf: s.d. ${fmtRp(st0.PLAFON_UANG)}</span><span class="text-primary fw-600">Bunga ${st0.BUNGA_UANG}% / bln</span></div>
+          <div class="row-between xs mt-1"><span><i class="bi bi-shield-check text-primary"></i> Batas plafon guru/staf: s.d. ${fmtRp(st0.PLAFON_UANG)}</span><span class="text-primary fw-600">Bunga ${fmtPct(Calc.rate('uang'))}% dari pokok</span></div>
           <span class="err-msg"></span><div class="label mt-2">Pilihan nominal cepat:</div><div class="chips">${[1000000, 2500000, 5000000, 10000000].map(v => `<button type="button" class="chip-btn" onclick="LoanForm.add(${v})">+${fmtJt(v)}</button>`).join('')}<button type="button" class="chip-btn" onclick="LoanForm.add(0)">Reset</button></div></div>
         <div id="lfBarang" class="form-grid cols-2" hidden><div class="fg full"><label>Pilih barang dari katalog <span class="req">*</span></label><select class="inp" name="ID_Barang"><option value="">— pilih barang —</option>${brg.map(b => `<option value="${esc(b.ID_Barang)}" ${d.ID_Barang === b.ID_Barang ? 'selected' : ''} ${num(b.Stok) <= 0 ? 'disabled' : ''}>${esc(b.Nama)} — ${fmtRp(b.Harga_Jual)} (stok ${b.Stok})</option>`).join('')}</select><span class="err-msg"></span></div>
           <div class="fg"><label>Jumlah (qty)</label><input class="inp" type="number" name="Qty" min="1" value="${esc(d.Qty || 1)}"></div><div class="fg"><label>Spesifikasi</label><div class="hint" id="lfSpec" style="padding-top:12px">—</div></div></div>
@@ -696,7 +696,7 @@ const LoanForm = {
         <div class="hero khatam-bg mt-2" style="padding:16px"><span class="khatam-star"></span><span class="eyebrow" style="color:#F4CF6B">Estimasi Angsuran Bulanan</span><div class="hero-amount" id="lfAngs">Rp 0</div><div class="small muted" id="lfAngsSub"></div></div>
         <button type="button" class="btn btn-ghost btn-sm mt-2" onclick="const b=document.getElementById('lfSched');b.hidden=!b.hidden"><i class="bi bi-calendar3"></i> Lihat rincian jadwal angsuran</button><div id="lfSched" hidden></div></div>
       ${member ? `<div class="card-k"><div class="row-between mb-2"><span class="label">Lampiran dokumen</span><span class="xs muted">PDF/JPG • maks. 5 MB</span></div><input class="inp" type="file" name="lampiran" accept=".pdf,.jpg,.jpeg,.png"><span class="hint">Opsional: slip gaji / rekomendasi unit. Diunggah ke folder Drive pribadi Anda.</span></div>` : ''}
-      <div class="card-k"><label class="check"><input type="checkbox" name="setuju" required data-msg="Centang persetujuan akad terlebih dahulu"> <span>Saya menyetujui ketentuan <b>akad syariah</b> koperasi dan bersedia angsuran dipotong melalui slip payroll bulanan ${esc(st0.SEKOLAH || '')} setiap tanggal ${st0.TGL_JATUH_TEMPO}.</span></label><span class="err-msg"></span></div>
+      <div class="card-k"><label class="check"><input type="checkbox" name="setuju" required data-msg="Centang persetujuan akad terlebih dahulu"> <span>Saya menyetujui ketentuan <b>akad syariah</b> koperasi dan bersedia angsuran (pinjaman uang / pembelian barang) <b>dipotong dari gaji</b> bulanan ${esc(st0.SEKOLAH || '')} <b>setiap tanggal ${tglPotong()}</b>.</span></label><span class="err-msg"></span></div>
       <div id="lfWarn"></div>
       <div class="row-gap" style="flex-wrap:nowrap"><button type="button" class="btn btn-info-soft btn-lg" onclick="LoanForm.draft(true)"><i class="bi bi-bookmark"></i> Draf</button><button type="submit" class="btn btn-primary btn-lg" style="flex:1">Kirim Pengajuan <i class="bi bi-arrow-right"></i></button></div>
       </div></form>`;
@@ -709,7 +709,7 @@ const LoanForm = {
     const idAng = LoanForm.member ? S.user.idAnggota : pickId(f.lfAng && f.lfAng.value);
     const brg = D.barang[f.ID_Barang.value], qty = Math.max(1, parseInt(f.Qty.value, 10) || 1);
     const pokok = jenis === 'uang' ? parseRp(f.Pokok.value) : brg ? num(brg.Harga_Jual) * qty : 0;
-    return { f, jenis, idAng, brg, qty, pokok, tenor: parseInt(f.Tenor.value, 10) || 0, persen: num(jenis === 'uang' ? S.settings.BUNGA_UANG : S.settings.BUNGA_BARANG), Keperluan: f.Keperluan.value.trim() };
+    return { f, jenis, idAng, brg, qty, pokok, tenor: parseInt(f.Tenor.value, 10) || 0, persen: Calc.rate(jenis), Keperluan: f.Keperluan.value.trim() };
   },
   /** Hitung ulang simulasi, validasi ringan & stepper — dipanggil setiap input (0 ms, lokal). */
   update(first) {
@@ -727,11 +727,11 @@ const LoanForm = {
     }
     const tenor = parseInt(tsel.value, 10) || opts[0];
     const h = Calc.pinjaman(r.pokok, r.persen, tenor);
-    document.getElementById('lfRate').innerHTML = badge((r.jenis === 'uang' ? 'Bunga ' : 'Margin ') + r.persen + '% / bln', 'b-solid');
-    document.getElementById('lfSim').innerHTML = `<dt>${r.jenis === 'uang' ? 'Pokok pinjaman' : 'Harga barang' + (r.qty > 1 ? ' ×' + r.qty : '')}</dt><dd>${fmtRp(h.pokok)}</dd><dt>Total ${r.jenis === 'uang' ? 'bunga' : 'margin'} (${r.persen}% × ${tenor} bln)</dt><dd>${fmtRp(h.totalBunga)} <span class="xs muted">(${fmtRp(h.bungaBulan)}/bln)</span></dd><dt class="fw-700" style="color:var(--text)">Total pengembalian</dt><dd class="text-primary" style="font-size:15px">${fmtRp(h.total)}</dd>`;
+    document.getElementById('lfRate').innerHTML = badge((r.jenis === 'uang' ? 'Bunga ' : 'Margin ') + fmtPct(r.persen) + '% total', 'b-solid');
+    document.getElementById('lfSim').innerHTML = `<dt>${r.jenis === 'uang' ? 'Pokok pinjaman' : 'Harga barang' + (r.qty > 1 ? ' ×' + r.qty : '')}</dt><dd>${fmtRp(h.pokok)}</dd><dt>Total ${r.jenis === 'uang' ? 'bunga' : 'margin'} (${fmtPct(r.persen)}% dari ${r.jenis === 'uang' ? 'pokok' : 'harga barang'})</dt><dd>${fmtRp(h.totalBunga)} <span class="xs muted">(${fmtRp(h.bungaBulan)}/bln × ${tenor})</span></dd><dt class="fw-700" style="color:var(--text)">Total pengembalian</dt><dd class="text-primary" style="font-size:15px">${fmtRp(h.total)}</dd>`;
     document.getElementById('lfAngs').innerHTML = rp(h.angsuran) + ' <span style="font-size:14px;font-weight:500;opacity:.8">/ bulan</span>';
-    document.getElementById('lfAngsSub').innerHTML = `<i class="bi bi-check-circle"></i> Potong payroll gaji tgl ${S.settings.TGL_JATUH_TEMPO} • ${tenor}× angsuran`;
-    const first1 = addMonths(T(), 1, num(S.settings.TGL_JATUH_TEMPO) || 10);
+    document.getElementById('lfAngsSub').innerHTML = `<i class="bi bi-check-circle"></i> Dipotong otomatis dari gaji setiap tanggal ${tglPotong()} • ${tenor}× angsuran`;
+    const first1 = addMonths(T(), 1, tglPotong());
     const sch = Calc.jadwal({ ID_Pinjaman: 'SIM', Tenor: tenor, Pokok: h.pokok, Total_Bunga: h.totalBunga }, T());
     document.getElementById('lfSched').innerHTML = h.pokok ? `<div class="table-wrap mt-2"><table class="tbl"><thead><tr><th>#</th><th>Jatuh tempo</th><th class="num">Pokok</th><th class="num">Bunga</th><th class="num">Total</th></tr></thead><tbody>${sch.map(x => `<tr><td>${x.Cicilan_Ke}</td><td>${fmtDate(x.Jatuh_Tempo)}</td><td class="num">${fmtNum(x.Pokok)}</td><td class="num">${fmtNum(x.Bunga)}</td><td class="num fw-600">${fmtNum(x.Total)}</td></tr>`).join('')}</tbody></table></div><div class="xs muted mt-1">Perkiraan; cicilan pertama ±${fmtDate(first1)} setelah dana/barang dicairkan.</div>` : '';
     if (r.brg) document.getElementById('lfSpec').innerHTML = `${esc(r.brg.Spesifikasi || r.brg.Kategori)} · stok <b>${r.brg.Stok}</b> ${esc(r.brg.Satuan)}`;
@@ -790,7 +790,7 @@ Pages['pinjaman-form'] = {
   title: 'Pengajuan Pinjaman', nav: 'pinjaman', roles: ['admin', 'bendahara'],
   render(el, p) {
     el.innerHTML = pageHead({ back: 'pinjaman', backLabel: 'Kembali ke Pinjaman', title: 'Pengajuan Pinjaman', desc: 'Formulir pembiayaan koperasi digital — simulasi angsuran dihitung otomatis sebelum disimpan.' }) +
-      `<div class="grid g-main-side"><div>${LoanForm.html(false, p.id)}</div><div class="stack detail-panel"><div class="card-k soft"><h3 class="font-head mb-2" style="font-size:15px"><i class="bi bi-diagram-3 text-primary"></i> Alur setelah dikirim</h3><ol class="small mb-0" style="padding-left:18px;line-height:1.9"><li>Pengajuan masuk antrean <b>sidang komite</b></li><li>Bendahara/Admin <b>menyetujui</b> → nomor akad terbit</li><li><b>Pencairan</b> dana/serah terima barang (stok otomatis berkurang)</li><li>Jadwal angsuran dibuat otomatis & dipotong payroll</li></ol></div>
+      `<div class="grid g-main-side"><div>${LoanForm.html(false, p.id)}</div><div class="stack detail-panel"><div class="card-k soft"><h3 class="font-head mb-2" style="font-size:15px"><i class="bi bi-diagram-3 text-primary"></i> Alur setelah dikirim</h3><ol class="small mb-0" style="padding-left:18px;line-height:1.9"><li>Pengajuan masuk antrean <b>sidang komite</b></li><li>Bendahara/Admin <b>menyetujui</b> → nomor akad terbit</li><li><b>Pencairan</b> dana/serah terima barang (stok otomatis berkurang)</li><li>Jadwal angsuran dibuat otomatis & dipotong gaji setiap tanggal ${tglPotong()}</li></ol></div>
       <div class="info-box ok"><i class="bi bi-shield-check"></i><div>Bunga/margin <b>flat dari pokok awal</b> & disepakati di awal akad. Persentase akad lama tidak berubah walau pengaturan diubah.</div></div></div></div>`;
     LoanForm.mount(false);
   },
@@ -825,7 +825,7 @@ Pages['pinjaman-detail'] = {
           ${isStaff() ? `<div class="person mt-3" role="button" ${on('Nav.go', 'anggota-detail', { id: l.ID_Anggota })}>${avatar(angName(l.ID_Anggota))}<div><div class="cell-main">${esc(angName(l.ID_Anggota))} ${badge(l.ID_Anggota, 'b-green')}</div><div class="cell-sub">${esc(a.Jabatan || '')} · NIK ${esc(a.NIK_NIP || '')}</div></div></div>` : ''}
           <div class="loan-summary">
             <div class="stat-mini"><span>${l.Jenis === 'uang' ? 'Pokok Pinjaman' : 'Harga Barang' + (l.Qty > 1 ? ' ×' + l.Qty : '')}</span><b>${fmtRp(l.Pokok)}</b></div>
-            <div class="stat-mini"><span>${l.Jenis === 'uang' ? 'Bunga' : 'Margin'} ${l.Bunga_Persen}% / bln</span><b>${fmtRp(Math.round(l.Total_Bunga / l.Tenor))}</b><span>Total ${fmtRp(l.Total_Bunga)}</span></div>
+            <div class="stat-mini"><span>${l.Jenis === 'uang' ? 'Bunga' : 'Margin'} ${fmtPct(Calc.loanPct(l))}% (total)</span><b>${fmtRp(Math.round(l.Total_Bunga / l.Tenor))}<small class="xs muted"> /bln</small></b><span>Total ${fmtRp(l.Total_Bunga)}</span></div>
             <div class="stat-mini"><span>Total Tagihan</span><b>${fmtRp(l.Total_Tagihan)}</b></div>
             <div class="stat-mini"><span>Angsuran Bulanan</span><b class="text-primary">${fmtRp(l.Angsuran_per_Bulan)}</b><span>Flat ${l.Tenor} bulan</span></div>
           </div>
@@ -836,7 +836,7 @@ Pages['pinjaman-detail'] = {
         </div>
         ${l.No_Perjanjian && !String(l.ID_Pinjaman).startsWith('tmp_') ? `<div class="grid g-2"><button class="btn btn-outline" ${on('Docs.akad', l.ID_Pinjaman)}><i class="bi bi-file-earmark-pdf"></i> Surat Akad (PDF)</button><button class="btn btn-outline" ${on('Docs.jadwal', l.ID_Pinjaman)} ${rows.length ? '' : 'disabled'}><i class="bi bi-calendar3"></i> Kartu Jadwal (PDF)</button></div>` : ''}
         ${rows.length ? `<div class="card-k"><div class="row-between mb-2"><b>Progres Pembayaran</b><b class="text-primary">${pc} dari ${l.Tenor} bulan (${pct(pc, l.Tenor)}%)</b></div>${progress(pct(terbayar, target), 'lg')}<div class="row-between small muted mt-2"><span>Terbayar: ${fmtRp(terbayar)}</span><span>Target: ${fmtRp(target)}</span></div></div>
-          <div class="info-box"><i class="bi bi-info-circle"></i><div>Pembayaran dipotong otomatis melalui payroll gaji bulanan ${esc(S.settings.SEKOLAH || '')} setiap tanggal ${S.settings.TGL_JATUH_TEMPO}. Tanpa denda riba; keterlambatan diselesaikan secara musyawarah.</div></div>
+          <div class="info-box"><i class="bi bi-info-circle"></i><div>Pembayaran angsuran dipotong otomatis dari gaji bulanan ${esc(S.settings.SEKOLAH || '')} setiap tanggal ${tglPotong()}. Tanpa denda riba; keterlambatan diselesaikan secara musyawarah.</div></div>
           <div><div class="row-between mb-2"><h3 class="font-head" style="font-size:18px"><i class="bi bi-calendar2-week text-primary"></i> Jadwal Angsuran</h3><span class="small muted">${l.Tenor} angsuran</span></div>
             ${showRows.map(r => { const s = Calc.sisaRow(r), late = s > 0 && r.Jatuh_Tempo < t, isCur = cur && r.ID_Angsuran === cur.ID_Angsuran; return `<div class="sched-item ${isCur ? 'cur' : ''} ${late ? 'late' : ''}"><span class="no">${r.Cicilan_Ke}</span><div class="s-body"><b>${fmtRp(r.Total)}</b><span>${fmtDate(r.Jatuh_Tempo)}${s === 0 ? ' • ' + esc(r.Dicatat_Oleh || 'Payroll') : isCur ? ' (Jatuh Tempo)' : ''}</span>${isCur ? `<div class="xs mt-1">Pokok: <b>${fmtRp(r.Pokok)}</b> · ${l.Jenis === 'uang' ? 'Bunga' : 'Margin'}: <b>${fmtRp(r.Bunga)}</b>${num(r.Dibayar) ? ' · Dibayar: <b>' + fmtRp(r.Dibayar) + '</b>' : ''}</div>` : ''}</div>${rowBadge(r)}${r.No_Bukti && s === 0 ? `<button class="btn btn-sm btn-ghost" aria-label="Kwitansi" ${on('Docs.kwitansi', r.No_Bukti)}><i class="bi bi-receipt"></i></button>` : ''}</div>`; }).join('')}
             ${rows.length > showRows.length || ui.all ? `<button class="btn btn-soft btn-block mt-2" onclick="st('pd-${esc(id)}').all=${!ui.all};Router.render()">${ui.all ? 'Tampilkan ringkas' : `Lihat cicilan #${showRows.length + 1} s.d. #${rows.length} (${rows.length - showRows.length} lagi)`} <i class="bi bi-chevron-${ui.all ? 'up' : 'down'}"></i></button>` : ''}</div>` :
@@ -932,7 +932,7 @@ Pages.angsuran = {
   render(el) {
     const s = Pages.angsuran.S();
     el.innerHTML = pageHead({ crumbs: [['Dashboard', 'dashboard'], ['Pinjaman & Angsuran', 'pinjaman'], ['Loket Pembayaran']], title: 'Loket Pembayaran Angsuran',
-      desc: 'Pencatatan setoran cicilan bulanan, pelunasan dipercepat, dan penerbitan kwitansi resmi ber-QR.', actions: `<span class="badge-k b-green"><i class="bi bi-calendar-check"></i> Hari ini: ${fmtRp(sum(S.db.pembayaran.filter(p => p.Tanggal === T()), 'Jumlah'))}</span>` }) +
+      desc: 'Pencatatan setoran cicilan bulanan, pelunasan dipercepat, dan penerbitan kwitansi resmi ber-QR.', actions: `<span class="badge-k b-green"><i class="bi bi-calendar-check"></i> Hari ini: ${fmtRp(sum(S.db.pembayaran.filter(p => p.Tanggal === T()), 'Jumlah'))}</span>${canWrite() ? `<button class="btn btn-primary" id="btnPotongGaji" onclick="Pages.angsuran.potong()"><i class="bi bi-building-check"></i> Potong Gaji Tgl ${tglPotong()}</button>` : ''}` }) +
       `<div class="grid g-kpi mb-3" id="angKpi"></div>
       <div class="mb-3">${tabs([['loket', 'Loket Kasir', 'bi-bank'], ['tunggakan', 'Monitoring Tunggakan', 'bi-exclamation-triangle', D.tunggakan.length], ['riwayat', 'Riwayat Pembayaran', 'bi-clock-history', S.db.pembayaran.length]], s.tab, 'Pages.angsuran.tab')}</div>
       <div id="angBody"></div>`;
@@ -944,6 +944,35 @@ Pages.angsuran = {
     if (!document.getElementById('angKpi')) return Router.render();
     Pages.angsuran.kpis();
     if (s.tab === 'loket') { Pages.angsuran.drawLoan(); Pages.angsuran.calc(); } else Pages.angsuran['draw_' + s.tab]();
+  },
+  /** Pratinjau & proses potong gaji bulan ini (angsuran pinjaman uang & barang). */
+  potong() {
+    Modal.open({ title: 'Potong Gaji Bulan Ini', icon: 'bi-building-check', size: 'lg', sub: 'Angsuran pinjaman uang & pembelian barang • tanggal ' + tglPotong(),
+      body: '<div id="pgBody" class="text-center p-4"><span class="spinner"></span> Memeriksa cicilan bulan ini…</div>',
+      foot: '<button class="btn btn-outline" data-bs-dismiss="modal">Tutup</button><button class="btn btn-primary" id="btnPgProses" disabled><i class="bi bi-check2-circle"></i> <span>Proses Sekarang</span></button>' });
+    callApi('angsuran.potongGaji.cek').then(r => {
+      const box = document.getElementById('pgBody'); if (!box) return;
+      if (!r.success) { box.innerHTML = `<div class="alert-k err"><i class="bi bi-x-octagon"></i><div>${esc(r.message)}</div></div>`; return; }
+      const d = r.data, btn = document.getElementById('btnPgProses');
+      const status = !d.otomatis ? `<div class="info-box"><i class="bi bi-pause-circle"></i><div><b>Potong otomatis NONAKTIF.</b> Aktifkan di Pengaturan → Margin & Pembiayaan, atau proses manual dengan tombol di bawah.</div></div>`
+        : d.sudah ? `<div class="info-box ok"><i class="bi bi-check2-circle"></i><div><b>Bulan ${esc(d.bulan)} sudah diproses.</b> Otomatis berjalan lagi tanggal ${tglPotong()} bulan depan pukul 06.00.</div></div>`
+        : d.mulaiBulanDepan ? `<div class="info-box"><i class="bi bi-calendar-event"></i><div>Potong otomatis aktif dan <b>mulai berlaku bulan depan</b> (diaktifkan setelah tanggal ${tglPotong()} bulan ini). Cicilan bulan ini bisa diproses manual.</div></div>`
+        : `<div class="info-box ok"><i class="bi bi-robot"></i><div><b>Potong otomatis AKTIF</b> — dijalankan sistem pada <b>${fmtDate(d.tanggal)}</b> pukul 06.00. Tombol di bawah hanya perlu bila gaji dicairkan lebih awal.</div></div>`;
+      const rows = d.items.length ? `<div class="table-wrap mt-3"><table class="tbl"><thead><tr><th>Anggota</th><th>Pinjaman</th><th class="num">Cicilan</th><th>Jatuh tempo</th><th class="num">Dipotong</th></tr></thead><tbody>${d.items.map(x => `<tr><td><b>${esc(x.Nama)}</b><div class="cell-sub">${esc(x.ID_Anggota)}</div></td><td>${esc(x.ID_Pinjaman)}<div class="cell-sub">${x.Jenis === 'barang' ? 'Pembelian barang' : 'Pinjaman uang'}</div></td><td class="num">ke-${esc(x.Cicilan)}</td><td>${fmtDate(x.Jatuh_Tempo)}</td><td class="num"><b>${fmtRp(x.Jumlah)}</b></td></tr>`).join('')}</tbody><tfoot><tr><td colspan="4"><b>Total ${d.items.length} angsuran</b></td><td class="num"><b class="text-primary">${fmtRp(d.total)}</b></td></tr></tfoot></table></div>`
+        : `<div class="mt-3">${empty('bi-check2-all', 'Tidak ada cicilan bulan ini yang perlu dipotong', 'Semua angsuran bulan berjalan sudah terbayar.')}</div>`;
+      box.className = '';
+      box.innerHTML = status + rows + `<div class="xs muted mt-2">Hanya cicilan yang jatuh tempo <b>bulan ini</b> yang dipotong. Tunggakan bulan sebelumnya tetap ditagih lewat Loket. Setiap potongan menerbitkan kwitansi (metode: potong gaji), mengurangi sisa tagihan, dan mengirim email ke anggota.</div>`;
+      if (d.items.length) { btn.disabled = false; btn.querySelector('span').textContent = 'Proses Sekarang (' + d.items.length + ' angsuran, ' + fmtRp(d.total) + ')'; btn.onclick = () => Pages.angsuran.potongGo(d); }
+    }).catch(e => { const box = document.getElementById('pgBody'); if (box) box.innerHTML = `<div class="alert-k err"><i class="bi bi-wifi-off"></i><div>${esc(e.message || e)}</div></div>`; });
+  },
+  potongGo(d) {
+    confirmDialog({ title: 'Proses potong gaji sekarang?', html: `${d.items.length} angsuran senilai <b>${fmtRp(d.total)}</b> akan dicatat terbayar dengan metode <b>potong gaji</b> per hari ini.`, ok: 'Ya, proses' }).then(yes => {
+      if (!yes) return;
+      Modal.close();
+      commit({ action: 'angsuran.potongGaji', payload: {}, tables: ['angsuran', 'pinjaman', 'pembayaran'], label: 'Potong gaji', quiet: true,
+        ok: res => toast(res.message, 'success', 'Potong gaji selesai') });
+      toast('Memproses potong gaji ' + d.items.length + ' angsuran…', 'info');
+    });
   },
   kpis() {
     const mk = monthKey(T()), today = sum(S.db.pembayaran.filter(p => p.Tanggal === T()), 'Jumlah');
@@ -982,12 +1011,12 @@ Pages.angsuran = {
     }
     const a = D.anggota[l.ID_Anggota] || {}, cur = nextRow(l), pc = paidCount(l), rows = D.rows[l.ID_Pinjaman] || [];
     box.innerHTML = `<div class="card-k soft" style="border-left:4px solid var(--primary)"><div class="row-between"><div class="person">${avatar(a.Nama || l.ID_Anggota, 'lg')}<div><div class="cell-main" style="font-size:16px">${esc(a.Nama || l.ID_Anggota)} ${badge(l.ID_Anggota, 'b-blue')}</div><div class="cell-sub">${esc(a.Jabatan || '')} · NIK ${esc(a.NIK_NIP || '')}</div></div></div>${badge('Berjalan (Cicilan ' + Math.min(l.Tenor, pc + 1) + ' dari ' + l.Tenor + ')', 'b-green')}</div>
-      <div class="grid g-4 mt-2"><div class="stat-mini"><span>No. Akad</span><b class="mono" style="font-size:12.5px">${esc(l.No_Perjanjian)}</b></div><div class="stat-mini"><span>Jenis akad</span><b>${l.Jenis === 'uang' ? 'Qardh' : 'Murabahah'} ${l.Bunga_Persen}%</b></div><div class="stat-mini"><span>Plafon</span><b>${fmtRp(l.Pokok)}</b></div><div class="stat-mini"><span>Sisa tagihan</span><b class="text-primary">${fmtRp(l.Sisa_Tagihan)}</b></div></div></div>`;
+      <div class="grid g-4 mt-2"><div class="stat-mini"><span>No. Akad</span><b class="mono" style="font-size:12.5px">${esc(l.No_Perjanjian)}</b></div><div class="stat-mini"><span>Jenis akad</span><b>${l.Jenis === 'uang' ? 'Qardh' : 'Murabahah'} ${fmtPct(Calc.loanPct(l))}%</b></div><div class="stat-mini"><span>Plafon</span><b>${fmtRp(l.Pokok)}</b></div><div class="stat-mini"><span>Sisa tagihan</span><b class="text-primary">${fmtRp(l.Sisa_Tagihan)}</b></div></div></div>`;
     if (cur) {
       const dn = Calc.denda(cur, Pages.angsuran.S().tanggal || T()), late = cur.Jatuh_Tempo < T();
       tg.innerHTML = `<div class="card-head"><h3><span class="badge-k b-solid">2</span> Rincian Tagihan Berjalan (Cicilan Ke-${cur.Cicilan_Ke})</h3>${badge('Periode: ' + fmtMonthLong(monthKey(cur.Jatuh_Tempo)), 'b-gold')}</div>
         <div class="info-box ${late ? 'danger' : ''}"><i class="bi bi-calendar-event"></i><div><b>Jatuh tempo: ${longDate(cur.Jatuh_Tempo)}</b> (${late ? 'terlambat ' + daysBetween(cur.Jatuh_Tempo, T()) + ' hari' : daysBetween(T(), cur.Jatuh_Tempo) === 0 ? 'hari ini' : 'tersisa ' + daysBetween(T(), cur.Jatuh_Tempo) + ' hari'}). ${String(S.settings.DENDA_AKTIF) === 'ya' ? 'Denda keterlambatan aktif (' + fmtRp(S.settings.DENDA_NOMINAL) + '/minggu setelah ' + S.settings.DENDA_TENGGANG + ' hari).' : 'Tidak dikenakan denda keterlambatan berbunga sesuai prinsip syariah.'}</div></div>
-        <div class="grid g-2 mt-3"><div class="stat-mini"><span>Pokok cicilan ke-${cur.Cicilan_Ke}</span><b>${fmtRp(num(cur.Pokok) - num(cur.Bayar_Pokok))}</b></div><div class="stat-mini"><span>${l.Jenis === 'uang' ? 'Bunga' : 'Margin'} syariah (${l.Bunga_Persen}%)</span><b>${fmtRp(num(cur.Bunga) - num(cur.Bayar_Bunga))}</b></div>
+        <div class="grid g-2 mt-3"><div class="stat-mini"><span>Pokok cicilan ke-${cur.Cicilan_Ke}</span><b>${fmtRp(num(cur.Pokok) - num(cur.Bayar_Pokok))}</b></div><div class="stat-mini"><span>${l.Jenis === 'uang' ? 'Bunga' : 'Margin'} syariah (${fmtPct(Calc.loanPct(l))}%)</span><b>${fmtRp(num(cur.Bunga) - num(cur.Bayar_Bunga))}</b></div>
           <div class="stat-mini"><span>Denda keterlambatan (ta'zir)</span><b>${fmtRp(dn - num(cur.Bayar_Denda))}</b></div><div class="stat-mini" style="background:var(--hero-bg);color:#fff"><span style="color:rgba(255,255,255,.75)">Total tagihan bulan ini</span><b>${fmtRp(Calc.sisaRow(Object.assign({}, cur, { Denda: dn })))}</b></div></div>
         <div class="mt-3"><div class="row-between xs muted mb-1"><span>Progres kontrak: ${pct(pc, l.Tenor)}% (${pc} dari ${l.Tenor} cicilan lunas)</span><span>Sisa ${l.Tenor - pc} cicilan</span></div><div class="progress-k lg"><span style="width:${pct(pc, l.Tenor)}%"></span><span class="gold" style="width:${pct(1, l.Tenor)}%"></span></div></div>`;
     }
@@ -1004,7 +1033,7 @@ Pages.angsuran = {
     const opt = (v, t, sub, gold) => `<label class="pay-opt ${gold ? 'gold' : ''} ${s.mode === v ? 'on' : ''}"><input type="radio" name="mode" value="${v}" ${s.mode === v ? 'checked' : ''} onchange="Pages.angsuran.set('mode','${v}')"><span class="po-body"><b>${t}</b><span>${sub}</span></span><span class="po-amt" id="amt-${v}"></span></label>`;
     return `<div class="panel-deep khatam-bg"><span class="khatam-star"></span><div class="row-between"><div><h3><i class="bi bi-calculator"></i> Kasir Pembayaran</h3><p>Formulir penerimaan & kwitansi digital</p></div>${badge('LOKET 1', 'b-solid')}</div><div class="xs mt-2" style="opacity:.85"><i class="bi bi-receipt"></i> No. kwitansi: otomatis (${esc(String(S.settings.FMT_KWITANSI || '').replace(/\{N+\}/, '…').replace('{YYYY}', T().slice(0, 4)).replace('{MM}', T().slice(5, 7)))})</div></div>
       <form class="p-3 stack" onsubmit="event.preventDefault();Pages.angsuran.bayar()" novalidate>
-        <div><div class="label mb-1">Metode pembayaran</div><div class="seg" style="width:100%;display:grid;grid-template-columns:repeat(3,1fr)">${[['payroll', 'Payroll', 'bi-building'], ['tunai', 'Tunai Loket', 'bi-cash'], ['transfer', 'Transfer', 'bi-bank']].map(m => `<button type="button" class="${s.metode === m[0] ? 'on' : ''}" onclick="Pages.angsuran.set('metode','${m[0]}')"><i class="bi ${m[2]}"></i> ${m[1]}</button>`).join('')}</div></div>
+        <div><div class="label mb-1">Metode pembayaran</div><div class="seg" style="width:100%;display:grid;grid-template-columns:repeat(3,1fr)">${[['payroll', 'Potong Gaji', 'bi-building'], ['tunai', 'Tunai Loket', 'bi-cash'], ['transfer', 'Transfer', 'bi-bank']].map(m => `<button type="button" class="${s.metode === m[0] ? 'on' : ''}" onclick="Pages.angsuran.set('metode','${m[0]}')"><i class="bi ${m[2]}"></i> ${m[1]}</button>`).join('')}</div></div>
         <div><div class="label mb-1">Opsi pembayaran angsuran</div>
           ${opt('tagihan', 'Bayar 1 bulan', 'Cicilan berjalan berikutnya')}
           <label class="pay-opt ${s.mode === 'multi' ? 'on' : ''}"><input type="radio" name="mode" value="multi" ${s.mode === 'multi' ? 'checked' : ''} onchange="Pages.angsuran.set('mode','multi')"><span class="po-body"><b>Bayar multi-bulan</b><span>Beberapa cicilan sekaligus</span></span><input class="inp" type="number" min="2" max="60" value="${s.n}" style="width:72px;min-height:36px" aria-label="Jumlah bulan" oninput="Pages.angsuran.set('n',this.value,true)" onclick="Pages.angsuran.set('mode','multi')"><span class="po-amt" id="amt-multi"></span></label>
@@ -1122,7 +1151,7 @@ Pages.angsuran = {
 // ════════════════════════════════════════════════════════
 // HALAMAN: STOK BARANG & INVENTARIS TOKO
 // ════════════════════════════════════════════════════════
-const murabahah = (hj, tenor) => Calc.pinjaman(hj, S.settings.BUNGA_BARANG, tenor || 10).angsuran;
+const murabahah = (hj, tenor) => Calc.pinjaman(hj, Calc.rate('barang'), tenor || 10).angsuran;
 Pages.stok = {
   title: 'Stok Barang Koperasi', roles: ['admin', 'bendahara', 'pengawas'],
   render(el) {
@@ -1131,7 +1160,7 @@ Pages.stok = {
     const nilai = sum(aktif, b => num(b.Stok) * num(b.Harga_Beli)), potensi = sum(aktif, b => num(b.Stok) * (num(b.Harga_Jual) - num(b.Harga_Beli)));
     const kats = {}; aktif.forEach(b => { kats[b.Kategori] = (kats[b.Kategori] || 0) + 1; });
     const salur = D.berjalan.filter(l => l.Jenis === 'barang');
-    el.innerHTML = pageHead({ crumbs: [['Dashboard', 'dashboard'], ['Toko & Logistik'], ['Stok Barang']], title: 'Manajemen Stok Barang & Inventaris Toko', desc: 'Etalase pengadaan barang, seragam sivitas, gadget edukasi guru, dan log mutasi inventaris yang terhubung otomatis dengan akad murabahah (' + S.settings.BUNGA_BARANG + '% flat/bln).',
+    el.innerHTML = pageHead({ crumbs: [['Dashboard', 'dashboard'], ['Toko & Logistik'], ['Stok Barang']], title: 'Manajemen Stok Barang & Inventaris Toko', desc: 'Etalase pengadaan barang, seragam sivitas, gadget edukasi guru, dan log mutasi inventaris yang terhubung otomatis dengan akad murabahah (margin ' + fmtPct(Calc.rate('barang')) + '% dari harga barang).',
       actions: `<button class="btn btn-outline" onclick="Pages.stok.excel()"><i class="bi bi-file-earmark-excel"></i> Ekspor Katalog</button>${canWrite() ? `<button class="btn btn-outline" onclick="Pages.stok.mutasi()"><i class="bi bi-box-arrow-in-down"></i> Barang Masuk</button><button class="btn btn-primary" onclick="Pages.stok.form()"><i class="bi bi-plus-square"></i> Tambah Produk</button>` : ''}` }) + `
       <div class="grid g-kpi mb-3">
         <div class="hero khatam-bg"><span class="khatam-star"></span><div class="row-between"><span class="eyebrow">Total Valuasi Aset Toko</span>${badge(T().slice(0, 4), 'b-solid')}</div><div class="hero-amount">${rp(nilai)}</div><div class="small"><span class="muted">HPP rata-rata tertimbang</span> · <span class="gold-text">Potensi margin +${fmtJt(potensi)}</span></div></div>
@@ -1148,7 +1177,7 @@ Pages.stok = {
         <div class="stack">
           ${canWrite() ? `<div class="card-k"><div class="card-head"><h3><i class="bi bi-arrow-down-up"></i> Input Mutasi Stok</h3>${badge('Otomatis jurnal', 'b-blue')}</div><div id="mutForm">${Pages.stok.mutasiHtml('sm')}</div></div>` : ''}
           <div class="card-k"><div class="card-head"><h3><i class="bi bi-clock-history"></i> Log Mutasi Terkini</h3></div><div class="list" id="mutLog"></div></div>
-          <div class="card-k soft"><div class="row-gap mb-2"><span class="kpi-icon"><i class="bi bi-patch-check"></i></span><b class="font-head">Kepatuhan Syariah: Akad Murabahah</b></div><p class="small mb-2">Sesuai Fatwa DSN-MUI No. 04/DSN-MUI/IV/2000: barang wajib dimiliki secara sah (qabdh) oleh koperasi sebelum diserahterimakan. Margin ${S.settings.BUNGA_BARANG}% flat/bln dinyatakan transparan di awal tanpa riba & denda berlipat.</p><div class="row-gap xs fw-600 text-primary"><span><i class="bi bi-check-circle"></i> Kepemilikan fisik sah</span><span><i class="bi bi-check-circle"></i> Ijab qabul tertulis</span></div></div>
+          <div class="card-k soft"><div class="row-gap mb-2"><span class="kpi-icon"><i class="bi bi-patch-check"></i></span><b class="font-head">Kepatuhan Syariah: Akad Murabahah</b></div><p class="small mb-2">Sesuai Fatwa DSN-MUI No. 04/DSN-MUI/IV/2000: barang wajib dimiliki secara sah (qabdh) oleh koperasi sebelum diserahterimakan. Margin ${fmtPct(Calc.rate('barang'))}% dari harga barang (total, dibagi rata tiap bulan) dinyatakan transparan di awal tanpa riba & denda berlipat.</p><div class="row-gap xs fw-600 text-primary"><span><i class="bi bi-check-circle"></i> Kepemilikan fisik sah</span><span><i class="bi bi-check-circle"></i> Ijab qabul tertulis</span></div></div>
         </div></div>`;
     Pages.stok.list();
   },
@@ -1167,7 +1196,7 @@ Pages.stok = {
       cols: [{ h: 'Kode SKU', v: b => `<span class="mono fw-600 text-primary">${esc(b.ID_Barang)}</span>${b.Status === 'nonaktif' ? '<div>' + badge('Nonaktif', 'b-gray') + '</div>' : ''}` },
         { h: 'Nama Produk & Kategori', main: true, v: b => `<div class="cell-main">${esc(b.Nama)}</div><div class="cell-sub">${badge(b.Kategori, 'b-gray')} ${esc(b.Spesifikasi || '')}</div>` },
         { h: 'Harga Tunai / HPP', cls: 'num', v: b => `<b>${fmtNum(b.Harga_Jual)}</b><div class="cell-sub">HPP ${fmtNum(b.Harga_Beli)}</div>` },
-        { h: 'Murabahah 10 bln', cls: 'num', v: b => `<b class="text-gold nowrap">${fmtJt(murabahah(b.Harga_Jual))}/bln</b><div class="cell-sub">margin ${S.settings.BUNGA_BARANG}%</div>` },
+        { h: 'Murabahah 10 bln', cls: 'num', v: b => `<b class="text-gold nowrap">${fmtJt(murabahah(b.Harga_Jual))}/bln</b><div class="cell-sub">margin ${fmtPct(Calc.rate('barang'))}% • 10 bln</div>` },
         { h: 'Stok', cls: 'num', v: b => `<b style="font-size:16px" class="${num(b.Stok) <= num(b.Stok_Min) ? 'text-danger' : ''}">${b.Stok}</b> <span class="cell-sub">${esc(b.Satuan)}</span>${num(b.Stok) <= num(b.Stok_Min) ? '<div>' + badge('Menipis (min ' + b.Stok_Min + ')', 'b-red') + '</div>' : ''}` },
         { h: '', label: 'Aksi', cls: 'num nowrap', v: b => canWrite() ? `<button class="btn btn-sm btn-ghost" aria-label="Mutasi" onclick="event.stopPropagation();${call('Pages.stok.mutasi', b.ID_Barang)}"><i class="bi bi-arrow-down-up"></i></button><button class="btn btn-sm btn-ghost" aria-label="Ubah" ${on('Pages.stok.form', b.ID_Barang)}><i class="bi bi-pencil"></i></button>` : '' }] });
     const log = document.getElementById('mutLog');
@@ -1233,7 +1262,7 @@ Pages.stok = {
           <div class="fg"><label>Harga pokok perolehan (HPP) <span class="req">*</span></label><div class="inp-group"><span class="addon rp">Rp</span><input class="inp money-inp" name="Harga_Beli" data-money required value="${b ? fmtNum(b.Harga_Beli) : ''}" ${b && num(b.Stok) > 0 ? 'readonly title="HPP dihitung otomatis (rata-rata) selama stok > 0"' : ''} data-msg="HPP wajib diisi"></div>${b && num(b.Stok) > 0 ? '<span class="hint">Terkunci: HPP rata-rata tertimbang otomatis saat barang masuk.</span>' : ''}</div>
           <div class="fg"><label>Harga tunai toko <span class="req">*</span> <span class="xs text-primary" id="fbMargin"></span></label><div class="inp-group"><span class="addon rp">Rp</span><input class="inp money-inp" name="Harga_Jual" data-money required value="${b ? fmtNum(b.Harga_Jual) : ''}" data-msg="Harga jual wajib diisi"></div></div>
         </div>
-        <div class="card-k" style="background:var(--gold-soft);border-color:transparent;box-shadow:none"><div class="row-between mb-2"><b class="small"><i class="bi bi-calculator"></i> Simulasi Pembiayaan Murabahah Sivitas (Tenor 10 Bulan)</b>${badge('Margin ' + S.settings.BUNGA_BARANG + '% flat/bln', 'b-gold')}</div><div class="grid g-3" id="fbSim"></div></div>
+        <div class="card-k" style="background:var(--gold-soft);border-color:transparent;box-shadow:none"><div class="row-between mb-2"><b class="small"><i class="bi bi-calculator"></i> Simulasi Pembiayaan Murabahah Sivitas (Tenor 10 Bulan)</b>${badge('Margin ' + fmtPct(Calc.rate('barang')) + '% dari harga', 'b-gold')}</div><div class="grid g-3" id="fbSim"></div></div>
         ${b ? '' : `<label class="check"><input type="checkbox" name="qabdh" required data-msg="Konfirmasi serah terima fisik"> <span><b>Konfirmasi qabdh hissi (serah terima fisik).</b> Barang telah diterima utuh di gudang koperasi sebelum ditawarkan akad murabahah ke anggota.</span></label>`}
       </form>`,
       foot: `<button class="btn btn-outline" data-bs-dismiss="modal">Batal</button><button class="btn btn-primary" onclick="Pages.stok.save(${esc(JSON.stringify(id || ''))})"><i class="bi bi-check2-circle"></i> ${b ? 'Simpan Perubahan' : 'Simpan Produk'}</button>` });
@@ -1241,9 +1270,9 @@ Pages.stok = {
   },
   sim() {
     const f = document.getElementById('fBarang'); if (!f) return;
-    const hb = parseRp(f.Harga_Beli.value), hj = parseRp(f.Harga_Jual.value), h = Calc.pinjaman(hj, S.settings.BUNGA_BARANG, 10);
+    const hb = parseRp(f.Harga_Beli.value), hj = parseRp(f.Harga_Jual.value), h = Calc.pinjaman(hj, Calc.rate('barang'), 10);
     document.getElementById('fbMargin').textContent = hb && hj ? '(+' + (Math.round((hj - hb) / hb * 1000) / 10).toString().replace('.', ',') + '% margin)' : '';
-    document.getElementById('fbSim').innerHTML = `<div class="stat-mini" style="background:var(--surface)"><span>Total margin (${S.settings.BUNGA_BARANG * 10}%)</span><b>${fmtRp(h.totalBunga)}</b></div><div class="stat-mini" style="background:var(--surface)"><span>Harga jual murabahah</span><b>${fmtRp(h.total)}</b></div><div class="stat-mini" style="background:var(--surface)"><span>Angsuran guru</span><b class="text-primary">${fmtRp(h.angsuran)}/bln</b></div>`;
+    document.getElementById('fbSim').innerHTML = `<div class="stat-mini" style="background:var(--surface)"><span>Total margin (${fmtPct(Calc.rate('barang'))}%)</span><b>${fmtRp(h.totalBunga)}</b></div><div class="stat-mini" style="background:var(--surface)"><span>Harga jual murabahah</span><b>${fmtRp(h.total)}</b></div><div class="stat-mini" style="background:var(--surface)"><span>Angsuran guru</span><b class="text-primary">${fmtRp(h.angsuran)}/bln</b></div>`;
   },
   save(id) {
     const f = document.getElementById('fBarang');
@@ -1297,7 +1326,7 @@ const Reports = {
       const tg = D.tunggakan.find(x => x.loan.ID_Pinjaman === l.ID_Pinjaman);
       if (l.Status === 'lunas' && !ps.length && !(l.Tgl_Cair >= a)) return;
       const cairIn = l.Tgl_Cair >= a ? num(l.Pokok) : 0;
-      rows.push([l.No_Perjanjian || l.ID_Pinjaman, angName(l.ID_Anggota), cap(l.Jenis) + ' ' + l.Bunga_Persen + '%', l.Tgl_Cair, num(l.Pokok), pk, bg, num(l.Sisa_Tagihan), l.Status === 'lunas' ? 'Lunas' : tg ? 'Menunggak H+' + tg.days : 'Lancar']);
+      rows.push([l.No_Perjanjian || l.ID_Pinjaman, angName(l.ID_Anggota), cap(l.Jenis) + ' ' + fmtPct(Calc.loanPct(l)) + '%', l.Tgl_Cair, num(l.Pokok), pk, bg, num(l.Sisa_Tagihan), l.Status === 'lunas' ? 'Lunas' : tg ? 'Menunggak H+' + tg.days : 'Lancar']);
       t.cair += cairIn; t.pokok += pk; t.bunga += bg; t.sisa += num(l.Sisa_Tagihan);
     });
     return { title: 'Rekap Pinjaman & Angsuran', kpis: [['Pencairan periode ini', t.cair], ['Angsuran pokok diterima', t.pokok], ['Bunga/margin & denda', t.bunga], ['Sisa tagihan', t.sisa]],
@@ -1327,7 +1356,7 @@ const Reports = {
   },
   labarugi(a, b) {
     const r = Rep.labaRugi(a, b);
-    const rows = [{ c: ['PENDAPATAN', ''], s: 'head' }, { c: ['Bunga pinjaman uang (qardh ' + S.settings.BUNGA_UANG + '%)', r.bungaUang], s: 'indent' }, { c: ['Margin pinjaman barang (murabahah ' + S.settings.BUNGA_BARANG + '%)', r.bungaBarang], s: 'indent' },
+    const rows = [{ c: ['PENDAPATAN', ''], s: 'head' }, { c: ['Bunga pinjaman uang (qardh ' + fmtPct(Calc.rate('uang')) + '% dari pokok)', r.bungaUang], s: 'indent' }, { c: ['Margin pinjaman barang (murabahah ' + fmtPct(Calc.rate('barang')) + '% dari harga)', r.bungaBarang], s: 'indent' },
       { c: ['Laba selisih harga barang (akad murabahah)', r.labaKredit], s: 'indent' }, { c: ['Laba penjualan tunai toko', r.labaTunai], s: 'indent' }];
     if (r.denda || String(S.settings.DENDA_AKTIF) === 'ya') rows.push({ c: ['Pendapatan denda keterlambatan', r.denda], s: 'indent' });
     rows.push({ c: ['Total Pendapatan', r.pendapatan], s: 'total' }, { c: ['BEBAN', ''], s: 'head' });
@@ -1517,7 +1546,7 @@ Pages.pengaturan = {
     const v = Pages.pengaturan.draft[k];
     if (type === 'switch') return `<div class="row-between" style="padding:10px 0;border-bottom:1px solid var(--border)"><div><b class="small">${label}</b>${hint ? `<div class="xs muted">${hint}</div>` : ''}</div><label class="switch"><input type="checkbox" ${String(v) === 'ya' ? 'checked' : ''} onchange="Pages.pengaturan.set('${k}',this.checked?'ya':'tidak')" aria-label="${esc(label)}"><span></span></label></div>`;
     if (type === 'money') return `<div class="fg"><label>${label}</label><div class="inp-group"><span class="addon rp">Rp</span><input class="inp money-inp" data-money value="${fmtNum(v)}" oninput="Pages.pengaturan.set('${k}',parseRp(this.value))"></div>${hint ? `<span class="hint">${hint}</span>` : ''}</div>`;
-    if (type === 'pct') return `<div class="fg"><label>${label} <span class="req">*</span></label><div class="inp-group"><input class="inp money-inp" type="number" step="0.1" min="0" max="10" value="${esc(v)}" oninput="Pages.pengaturan.set('${k}',this.value)"><span class="addon">% / bln</span></div>${hint ? `<span class="hint">${hint}</span>` : ''}</div>`;
+    if (type === 'pct') return `<div class="fg"><label>${label} <span class="req">*</span></label><div class="inp-group"><input class="inp money-inp" type="number" step="0.5" min="0" max="100" value="${esc(v)}" oninput="Pages.pengaturan.set('${k}',this.value)"><span class="addon">% total</span></div>${hint ? `<span class="hint">${hint}</span>` : ''}</div>`;
     return `<div class="fg ${extra || ''}"><label>${label}</label><input class="inp ${type === 'mono' ? 'mono' : ''}" type="${type === 'number' ? 'number' : 'text'}" value="${esc(v)}" oninput="Pages.pengaturan.set('${k}',this.value)">${hint ? `<span class="hint">${hint}</span>` : ''}</div>`;
   },
   /** Tenor yang diizinkan = rentang bulan minimal s.d. maksimal (j = 'UANG' | 'BARANG'). */
@@ -1542,9 +1571,9 @@ Pages.pengaturan = {
   body() {
     const s = st('pengaturan'), F = Pages.pengaturan.fld, box = document.getElementById('setBody'); if (!box) return;
     if (s.tab === 'pembiayaan') box.innerHTML = `<div class="card-k mb-3"><div class="card-head"><div><h3><i class="bi bi-cash-coin"></i> 1. Pembiayaan Uang Kas (Qardh / Multiguna)</h3><p>Margin baku, plafon & tenor</p></div>${badge('PRD 4.2', 'b-gray')}</div>
-        <div class="form-grid cols-2">${F('BUNGA_UANG', 'Bunga koperasi / bulan', 'pct', 'Flat dari pokok awal')}${F('PLAFON_UANG', 'Plafon maksimal per pengajuan', 'money')}</div><div class="label mt-3 mb-2">Tenor yang diizinkan</div>${Pages.pengaturan.tenorBox('UANG')}</div>
+        <div class="form-grid cols-2">${F('BUNGA_TOTAL_UANG', 'Bunga koperasi (total)', 'pct', 'Persen dari besar pinjaman — sama untuk tenor berapa pun, dibagi rata tiap bulan')}${F('PLAFON_UANG', 'Plafon maksimal per pengajuan', 'money')}</div><div class="label mt-3 mb-2">Tenor yang diizinkan</div>${Pages.pengaturan.tenorBox('UANG')}</div>
       <div class="card-k mb-3"><div class="card-head"><div><h3><i class="bi bi-box-seam"></i> 2. Pembiayaan Pengadaan Barang (Murabahah)</h3><p>Margin toko & tenor</p></div>${badge("Murabahah Ri'ayah", 'b-gold')}</div>
-        <div class="form-grid cols-2">${F('BUNGA_BARANG', 'Margin toko / bulan', 'pct', 'Flat dari harga barang')}${F('TGL_JATUH_TEMPO', 'Tanggal jatuh tempo bulanan', 'number', 'Selaras tanggal payroll (1–28)')}</div><div class="label mt-3 mb-2">Tenor yang diizinkan</div>${Pages.pengaturan.tenorBox('BARANG')}
+        <div class="form-grid cols-2">${F('BUNGA_TOTAL_BARANG', 'Margin toko (total)', 'pct', 'Persen dari harga pembelian barang — sama untuk tenor berapa pun, dibagi rata tiap bulan')}${F('TGL_POTONG_GAJI', 'Tanggal potong gaji (angsuran)', 'number', 'Angsuran pinjaman uang & barang dipotong gaji setiap tanggal ini (1–28)')}</div>${F('POTONG_OTOMATIS', 'Potong gaji otomatis setiap tanggal ' + tglPotong(), 'switch', 'Pukul 06.00 cicilan bulan berjalan dicatat terbayar (metode potong gaji): kwitansi terbit, sisa tagihan berkurang, email ke anggota. Tunggakan bulan sebelumnya tidak ikut.')}<div class="label mt-3 mb-2">Tenor yang diizinkan</div>${Pages.pengaturan.tenorBox('BARANG')}
         ${F('SATU_PINJAMAN_AKTIF', 'Batasi satu pinjaman sejenis yang aktif', 'switch', 'Anggota tidak boleh mengajukan jenis yang sama selama masih berjalan')}${F('DISKON_PELUNASAN', 'Diskon margin pada pelunasan dipercepat', 'switch', 'Bunga cicilan yang belum jatuh tempo dibebaskan (ibra\')')}</div>
       <div class="card-k"><div class="card-head"><div><h3><i class="bi bi-hourglass"></i> Aturan Sanksi Ta'zir (Infaq Keterlambatan)</h3><p>Nonaktif secara bawaan sesuai prinsip syariah</p></div></div>
         ${F('DENDA_AKTIF', 'Aktifkan denda keterlambatan', 'switch', 'Bila aktif, denda dihitung per minggu setelah masa tenggang')}<div class="form-grid cols-2 mt-3">${F('DENDA_NOMINAL', 'Nominal denda per minggu', 'money')}${F('DENDA_TENGGANG', 'Masa tenggang (hari)', 'number')}</div></div>`;
@@ -1579,13 +1608,13 @@ Pages.pengaturan = {
     const s = st('pengaturan'), d = Pages.pengaturan.draft;
     const rg = Calc.tenorRange(s.simJenis, d);
     s.simTenor = Math.min(rg.max, Math.max(rg.min, num(s.simTenor) || 10));
-    const persen = num(s.simJenis === 'uang' ? d.BUNGA_UANG : d.BUNGA_BARANG), h = Calc.pinjaman(s.simPokok, persen, s.simTenor);
+    const persen = Calc.rate(s.simJenis, d), h = Calc.pinjaman(s.simPokok, persen, s.simTenor);
     box.innerHTML = `<div class="card-k"><div class="card-head"><h3><i class="bi bi-calculator"></i> Simulator Hitung Akad</h3>${badge('Live', 'b-green')}</div>
-      <div class="seg mb-3" style="width:100%;display:grid;grid-template-columns:1fr 1fr"><button class="${s.simJenis === 'uang' ? 'on' : ''}" onclick="st('pengaturan').simJenis='uang';Pages.pengaturan.side()">Uang (${num(d.BUNGA_UANG)}%)</button><button class="${s.simJenis === 'barang' ? 'on' : ''}" onclick="st('pengaturan').simJenis='barang';Pages.pengaturan.side()">Barang (${num(d.BUNGA_BARANG)}%)</button></div>
+      <div class="seg mb-3" style="width:100%;display:grid;grid-template-columns:1fr 1fr"><button class="${s.simJenis === 'uang' ? 'on' : ''}" onclick="st('pengaturan').simJenis='uang';Pages.pengaturan.side()">Uang (${fmtPct(Calc.rate('uang', d))}%)</button><button class="${s.simJenis === 'barang' ? 'on' : ''}" onclick="st('pengaturan').simJenis='barang';Pages.pengaturan.side()">Barang (${fmtPct(Calc.rate('barang', d))}%)</button></div>
       <div class="fg"><label>Nominal pengajuan</label><div class="inp-group"><span class="addon rp">Rp</span><input class="inp money-inp" data-money value="${fmtNum(s.simPokok)}" onchange="st('pengaturan').simPokok=parseRp(this.value);Pages.pengaturan.side()"></div></div>
       <div class="fg mt-2"><label><span>Jangka waktu</span><b class="text-primary">${s.simTenor} bulan</b></label><input type="range" min="${rg.min}" max="${rg.max}" value="${s.simTenor}" style="accent-color:var(--primary)" oninput="st('pengaturan').simTenor=+this.value;Pages.pengaturan.side()" aria-label="Tenor"><div class="row-between xs muted"><span>${rg.min} bln</span><span>${rg.max} bln</span></div></div>
       <div class="hero khatam-bg mt-3" style="padding:16px"><span class="khatam-star"></span><span class="eyebrow">Total angsuran bulanan</span><div class="hero-amount">${rp(h.angsuran)}<span style="font-size:13px;font-weight:500"> /bln</span></div><div class="hero-split"><div><span>Pokok/bln</span><b>${fmtJt(h.pokokBulan)}</b></div><div><span>Margin/bln</span><b>${fmtJt(h.bungaBulan)}</b></div><div><span>Total</span><b>${fmtJt(h.total)}</b></div></div></div>
-      <div class="xs muted mt-2"><b>Formula (PRD 4.2):</b> Total bunga = Pokok × % × Tenor; Angsuran = (Pokok + Total bunga) ÷ Tenor. Tidak ada bunga berbunga.</div></div>
+      <div class="xs muted mt-2"><b>Formula:</b> Total bunga = Pokok × % (sekali, tidak dikali tenor); Angsuran = (Pokok + Total bunga) ÷ Tenor, flat tiap bulan. Tenor panjang atau pendek, total bunga sama. Tidak ada bunga berbunga.</div></div>
       <div class="card-k"><div class="card-head"><h3><i class="bi bi-pen"></i> KOP & Penandatangan</h3></div><div class="small"><b>${esc(d.NAMA_KOPERASI)}</b><div class="muted">${esc(d.SEKOLAH)} • Badan Hukum ${esc(d.BADAN_HUKUM)}</div></div><div class="list mt-2">${[['Ketua', d.KETUA], ['Bendahara', d.BENDAHARA], ['Pengawas / DPS', d.PENGAWAS]].map((x, i) => `<div class="list-item"><span class="li-icon">${i + 1}</span><div class="li-body"><b>${esc(x[1])}</b><span>${x[0]}</span></div><i class="bi bi-patch-check text-primary"></i></div>`).join('')}</div></div>`;
   },
   save() {
@@ -1710,7 +1739,7 @@ Pages['m-beranda'] = {
         <div><div class="row-between mb-2"><h3 class="font-head" style="font-size:17px">Layanan Cepat</h3><span class="xs fw-600 text-primary">Syariah Mandiri</span></div>
           <div class="quick-grid"><button class="quick" onclick="Pages.mBeranda.setor()"><span class="q-ic"><i class="bi bi-piggy-bank"></i></span>Setor Sukarela</button><button class="quick" ${on('Nav.go', 'm-pinjaman')}><span class="q-ic gold"><i class="bi bi-file-earmark-text"></i></span>Pinjaman Saya</button>
             <button class="quick" onclick="Pages.mBeranda.katalog()"><span class="q-ic blue"><i class="bi bi-shop"></i></span>Katalog Barang</button><button class="quick" ${on('Docs.kta', a.ID_Anggota)}><span class="q-ic"><i class="bi bi-person-vcard"></i></span>Cetak Kartu</button></div></div>
-        <div class="card-k soft hoverable" onclick="Pages.mBeranda.katalog()"><div class="row-gap" style="flex-wrap:nowrap"><span class="kpi-icon gold" style="width:56px;height:56px;font-size:24px"><i class="bi bi-laptop"></i></span><div><div class="eyebrow">Pembiayaan Khusus Guru</div><b class="font-head">Laptop & Alat Pembelajaran ${S.settings.BUNGA_BARANG}%</b><div class="small muted">Akad murabahah murni tanpa denda keterlambatan</div></div></div></div>
+        <div class="card-k soft hoverable" onclick="Pages.mBeranda.katalog()"><div class="row-gap" style="flex-wrap:nowrap"><span class="kpi-icon gold" style="width:56px;height:56px;font-size:24px"><i class="bi bi-laptop"></i></span><div><div class="eyebrow">Pembiayaan Khusus Guru</div><b class="font-head">Laptop & Alat Pembelajaran ${fmtPct(Calc.rate('barang'))}%</b><div class="small muted">Akad murabahah murni tanpa denda keterlambatan</div></div></div></div>
       </div>
       <div class="card-k"><div class="row-between mb-2"><h3 class="font-head" style="font-size:17px">Aktivitas Terakhir</h3><span class="small muted">${fmtMonth(monthKey(addMonths(T(), -1)))} – ${fmtMonth(mk)}</span></div>
         <div class="list">${Pages.mBeranda.feed(a.ID_Anggota).slice(0, 6).map(Pages.mBeranda.item).join('') || empty('bi-inbox', 'Belum ada aktivitas')}</div>
@@ -1723,7 +1752,7 @@ Pages.mBeranda = {
   feed(id) {
     const out = [];
     S.db.simpanan.filter(x => x.ID_Anggota === id).forEach(x => out.push({ t: x.Tanggal, k: 'simpanan', title: (x.Tipe === 'tarik' ? 'Penarikan ' : 'Setoran ') + 'Simpanan ' + cap(x.Jenis), sub: fmtDate(x.Tanggal) + ' • ' + cap(x.Metode || ''), amt: (x.Tipe === 'tarik' ? -1 : 1) * num(x.Jumlah), st: x.Status === 'batal' ? 'Batal' : x._pending ? 'Menyinkron' : 'Tercatat', ref: x.ID_Transaksi, icon: x.Tipe === 'tarik' ? 'bi-arrow-up-right' : 'bi-arrow-down-left', cls: x.Tipe === 'tarik' ? 'out' : '' }));
-    S.db.pembayaran.filter(p => p.ID_Anggota === id).forEach(p => out.push({ t: p.Tanggal, k: 'angsuran', title: 'Angsuran ' + (D.loans[p.ID_Pinjaman] ? (D.loans[p.ID_Pinjaman].Jenis === 'barang' ? 'Barang ' : 'Uang ') : '') + '#' + p.Cicilan, sub: fmtDate(p.Tanggal) + ' • ' + (p.Metode === 'payroll' ? 'Potong Payroll' : cap(p.Metode)), amt: -num(p.Jumlah), st: 'Berhasil', ref: p.No_Bukti, icon: 'bi-arrow-up-right', cls: 'out' }));
+    S.db.pembayaran.filter(p => p.ID_Anggota === id).forEach(p => out.push({ t: p.Tanggal, k: 'angsuran', title: 'Angsuran ' + (D.loans[p.ID_Pinjaman] ? (D.loans[p.ID_Pinjaman].Jenis === 'barang' ? 'Barang ' : 'Uang ') : '') + '#' + p.Cicilan, sub: fmtDate(p.Tanggal) + ' • ' + (p.Metode === 'payroll' ? 'Potong Gaji' : cap(p.Metode)), amt: -num(p.Jumlah), st: 'Berhasil', ref: p.No_Bukti, icon: 'bi-arrow-up-right', cls: 'out' }));
     S.db.pinjaman.filter(l => l.ID_Anggota === id && l.Tgl_Cair).forEach(l => out.push({ t: l.Tgl_Cair, k: 'pinjaman', title: (l.Jenis === 'barang' ? 'Pembiayaan ' : 'Pencairan ') + loanLabel(l), sub: fmtDate(l.Tgl_Cair) + ' • ' + (l.Jenis === 'barang' ? 'Murabahah' : 'Qardh'), amt: num(l.Pokok), st: l.Status === 'lunas' ? 'LUNAS' : 'Berjalan', ref: l.ID_Pinjaman, icon: l.Jenis === 'barang' ? 'bi-laptop' : 'bi-cash-coin', cls: 'blue' }));
     return out.sort((a, b) => String(b.t).localeCompare(String(a.t)));
   },
@@ -1741,7 +1770,7 @@ Pages.mBeranda = {
   },
   katalog() {
     const B = S.db.barang.filter(b => b.Status !== 'nonaktif' && num(b.Stok) > 0).sort((a, b) => a.Kategori.localeCompare(b.Kategori));
-    Modal.open({ title: 'Katalog Barang Koperasi', sub: 'Akad murabahah ' + S.settings.BUNGA_BARANG + '% flat/bulan • harga transparan sejak awal', icon: 'bi-shop', size: 'lg',
+    Modal.open({ title: 'Katalog Barang Koperasi', sub: 'Akad murabahah: margin ' + fmtPct(Calc.rate('barang')) + '% dari harga barang • angsuran flat tiap bulan', icon: 'bi-shop', size: 'lg',
       body: B.length ? `<div class="grid g-2-lg">${B.map(b => `<div class="card-k"><div class="row-between">${badge(b.Kategori, 'b-gray')}<span class="xs muted">Stok ${b.Stok} ${esc(b.Satuan)}</span></div><b class="font-head d-block mt-2">${esc(b.Nama)}</b><div class="xs muted">${esc(b.Spesifikasi || '')}</div>
         <div class="row-between mt-2"><div><div class="xs muted">Harga tunai</div><b>${fmtRp(b.Harga_Jual)}</b></div><div class="text-end"><div class="xs muted">Cicil 10 bln</div><b class="text-gold">${fmtRp(murabahah(b.Harga_Jual))}/bln</b></div></div>
         <button class="btn btn-soft btn-block btn-sm mt-2" ${on('Pages.mBeranda.ajukanBarang', b.ID_Barang)}><i class="bi bi-cart-plus"></i> Ajukan Murabahah</button></div>`).join('')}</div>` : empty('bi-shop', 'Katalog kosong', 'Belum ada barang tersedia.') });
@@ -1772,12 +1801,12 @@ Pages['m-pinjaman'] = {
     const sisa = sum(L.filter(l => l.Status === 'berjalan'), 'Sisa_Tagihan'), angs = sum(L.filter(l => l.Status === 'berjalan'), 'Angsuran_per_Bulan');
     el.innerHTML = pageHead({ title: 'Pinjaman Saya', desc: 'Pantau sisa tagihan, jadwal angsuran, dan unduh surat akad Anda.', actions: `<button class="btn btn-gold" ${on('Nav.go', 'm-ajukan')}><i class="bi bi-plus-lg"></i> Ajukan Pinjaman</button>` }) + `
       <div class="grid g-2 mb-3"><div class="hero khatam-bg"><span class="khatam-star"></span><span class="eyebrow">Total Sisa Tagihan</span><div class="hero-amount">${rp(sisa, true)}</div><div class="small muted">${L.filter(l => l.Status === 'berjalan').length} pinjaman berjalan</div></div>
-        ${kpi({ label: 'Angsuran per Bulan', value: rp(angs, true), icon: 'bi-calendar2-check', tone: 'gold', sub: 'Potong payroll tgl ' + S.settings.TGL_JATUH_TEMPO })}</div>
+        ${kpi({ label: 'Angsuran per Bulan', value: rp(angs, true), icon: 'bi-calendar2-check', tone: 'gold', sub: 'Dipotong otomatis dari gaji tgl ' + tglPotong() })}</div>
       ${L.length ? `<div class="grid g-2-lg">${L.map(l => { const pc = paidCount(l), cur = nextRow(l); return `<div class="card-k hoverable" ${on('Nav.go', 'pinjaman-detail', { id: l.ID_Pinjaman })}><div class="row-between">${jenisBadge(l)}${loanBadge(l)}</div>
         <h4 class="font-head mt-2" style="font-size:16px">${esc(loanLabel(l))}</h4><div class="xs muted mono">${esc(l.No_Perjanjian && !l.No_Perjanjian.startsWith('(') ? l.No_Perjanjian : l.ID_Pinjaman.startsWith('tmp_') ? 'Menunggu nomor…' : l.ID_Pinjaman)}</div>
         <div class="grid g-2 mt-2"><div class="stat-mini"><span>Plafon</span><b>${fmtRp(l.Pokok)}</b></div><div class="stat-mini"><span>Angsuran</span><b>${fmtRp(l.Angsuran_per_Bulan)}</b></div></div>
         ${l.Status === 'berjalan' ? `<div class="mt-2">${progress(pct(pc, l.Tenor))}</div><div class="row-between xs mt-1"><span class="muted">${pc}/${l.Tenor} lunas${cur ? ' · berikutnya ' + fmtDate(cur.Jatuh_Tempo) : ''}</span><b class="text-primary">Sisa ${fmtRp(l.Sisa_Tagihan)}</b></div>` : l.Status === 'ditolak' ? `<div class="xs text-danger mt-2">${esc(l.Catatan || '')}</div>` : ''}</div>`; }).join('')}</div>`
-        : `<div class="card-k">${empty('bi-wallet2', 'Belum ada pinjaman', 'Ajukan pembiayaan uang (' + S.settings.BUNGA_UANG + '%) atau barang (' + S.settings.BUNGA_BARANG + '%) dengan simulasi angsuran otomatis.')}</div>`}`;
+        : `<div class="card-k">${empty('bi-wallet2', 'Belum ada pinjaman', 'Ajukan pembiayaan uang (bunga ' + fmtPct(Calc.rate('uang')) + '% dari pokok) atau barang (margin ' + fmtPct(Calc.rate('barang')) + '% dari harga) dengan simulasi angsuran otomatis.')}</div>`}`;
   }
 };
 Pages['m-ajukan'] = {
@@ -1785,7 +1814,7 @@ Pages['m-ajukan'] = {
   render(el) {
     el.innerHTML = pageHead({ back: 'm-beranda', backLabel: 'Kembali ke Beranda', title: 'Pengajuan Pinjaman', desc: 'Formulir pembiayaan koperasi digital — draf tersimpan otomatis di perangkat Anda.' }) +
       `<div class="grid g-main-side"><div>${me().Status === 'aktif' ? LoanForm.html(true) : `<div class="card-k">${empty('bi-person-x', 'Keanggotaan nonaktif', 'Pengajuan hanya untuk anggota aktif.')}</div>`}</div>
-      <div class="stack detail-panel hide-sm"><div class="card-k soft"><b class="font-head">Ketentuan singkat</b><ul class="small mt-2 mb-0" style="padding-left:18px;line-height:1.8"><li>Bunga/margin flat dari pokok awal, disepakati di akad</li><li>Angsuran dipotong payroll tanggal ${S.settings.TGL_JATUH_TEMPO}</li><li>Pelunasan dipercepat bebas penalti</li><li>Satu pinjaman sejenis aktif per anggota</li></ul></div></div></div>`;
+      <div class="stack detail-panel hide-sm"><div class="card-k soft"><b class="font-head">Ketentuan singkat</b><ul class="small mt-2 mb-0" style="padding-left:18px;line-height:1.8"><li>Bunga/margin flat dari pokok awal, disepakati di akad</li><li>Angsuran dipotong otomatis dari gaji setiap tanggal ${tglPotong()}</li><li>Pelunasan dipercepat bebas penalti</li><li>Satu pinjaman sejenis aktif per anggota</li></ul></div></div></div>`;
     if (me().Status === 'aktif') LoanForm.mount(true);
   },
   refresh() { /* jaga ketikan formulir */ }
@@ -1821,7 +1850,7 @@ Pages.profil = {
         <div class="small muted">NIK: ${esc(a.NIK_NIP)} • ID: <b class="text-primary">${esc(a.ID_Anggota)}</b></div><div class="mt-2">${badge('Anggota ' + (a.Status === 'aktif' ? 'Aktif' : 'Nonaktif') + ' Sejak ' + (a.Tgl_Bergabung ? BULAN[+a.Tgl_Bergabung.slice(5, 7) - 1] + ' ' + a.Tgl_Bergabung.slice(0, 4) : '-'), a.Status === 'aktif' ? 'b-green' : 'b-gray', 'bi-check-circle')}</div>
         <div class="small mt-2"><i class="bi bi-mortarboard text-primary"></i> ${esc(a.Jabatan || '')} — ${esc(S.settings.SEKOLAH || '')}</div></div>
       <div><div class="row-between mb-2"><h3 class="font-head" style="font-size:17px">Ringkasan Portofolio</h3><a href="javascript:void(0)" class="small fw-600" ${on('Docs.kartuSimpanan', a.ID_Anggota)}>Buku Kas Syariah <i class="bi bi-journal"></i></a></div>
-        <div class="grid g-2">${kpi({ label: 'Total Simpanan', value: rp(s.total, true), icon: 'bi-piggy-bank', tag: badge('Wadiah', 'b-green') })}${kpi({ label: 'Sisa Pembiayaan', value: rp(sisa, true), icon: 'bi-bank', tone: tung ? 'red' : '', tag: badge(tung ? 'Menunggak' : 'Lancar ' + S.settings.BUNGA_UANG + '%', tung ? 'b-red' : 'b-green') })}
+        <div class="grid g-2">${kpi({ label: 'Total Simpanan', value: rp(s.total, true), icon: 'bi-piggy-bank', tag: badge('Wadiah', 'b-green') })}${kpi({ label: 'Sisa Pembiayaan', value: rp(sisa, true), icon: 'bi-bank', tone: tung ? 'red' : '', tag: badge(tung ? 'Menunggak' : 'Lancar', tung ? 'b-red' : 'b-green') })}
           ${kpi({ label: 'Riwayat Mutasi', value: mut + ' <small>transaksi</small>', icon: 'bi-receipt', tone: 'blue' })}${kpi({ label: 'Cicilan Lunas', value: lunasR + ' <small>/ ' + totR + '</small>', icon: 'bi-award', tone: 'gold', tag: badge('Amanah', 'b-gold') })}</div></div>
       <div class="card-k"><div class="row-between mb-2"><h3 class="font-head" style="font-size:16px"><i class="bi bi-person-vcard text-primary"></i> Data Pokok Keanggotaan</h3><a href="javascript:void(0)" class="small fw-600" onclick="toast('Untuk koreksi data pribadi, silakan hubungi Admin/Bendahara koperasi.','info','Koreksi data')">Koreksi</a></div>
         <div class="stack" style="gap:8px">${[['bi-whatsapp', 'Nomor WhatsApp Terdaftar', a.No_HP], ['bi-envelope', 'Email Resmi Sekolah', a.Email], ['bi-geo-alt', 'Alamat Domisili Sesuai KTP', a.Alamat], ['bi-building', 'Status Kepegawaian', (a.Status_Pegawai || '') + ' • payroll ' + (S.settings.SEKOLAH || '')]].map(x => `<div class="stat-mini row-gap" style="flex-wrap:nowrap;align-items:flex-start"><i class="bi ${x[0]} text-primary" style="font-size:18px"></i><div style="min-width:0"><span>${x[1]}</span><b style="font-size:14px;font-family:var(--font-body)">${esc(x[2] || '-')}</b></div></div>`).join('')}</div></div>
@@ -1836,7 +1865,7 @@ Pages.profil = {
         ${Pages.profil.row('bi-headset', 'Bantuan & Hubungi Bendahara', 'Konsultasi pembiayaan & data anggota', 'Pages.mBeranda.setor()')}
       </div></div>
       <button class="btn btn-danger-soft btn-lg btn-block" onclick="Auth.logout()"><i class="bi bi-box-arrow-right"></i> Keluar dari Akun SIMPEL-KOP</button>
-      <div class="text-center xs muted">SIMPEL-KOP v${esc(BOOT.version || '1.4.2')} • Berlandaskan Prinsip Syariah<br>${esc(S.settings.NAMA_KOPERASI || '')}</div></div></div>`;
+      <div class="text-center xs muted">SIMPEL-KOP v${esc(BOOT.version || '1.4.5')} • Berlandaskan Prinsip Syariah<br>${esc(S.settings.NAMA_KOPERASI || '')}</div></div></div>`;
   },
   gantiSandi(wajib) {
     Modal.open({ title: 'Ganti Kata Sandi', icon: 'bi-key', sub: wajib ? 'Demi keamanan, ganti sandi sementara Anda sekarang.' : 'Gunakan minimal 8 karakter kombinasi huruf & angka',
@@ -2032,11 +2061,11 @@ const Docs = {
           <p>Kedua belah pihak sepakat mengikatkan diri dalam perjanjian ${uang ? 'pembiayaan uang' : 'jual beli murabahah barang'} dengan ketentuan sebagai berikut:</p>`;
         const pasal = uang ? [
           ['Pasal 1 — Pokok Pembiayaan', `PIHAK PERTAMA memberikan pembiayaan uang kepada PIHAK KEDUA sebesar <b>${fmtRp(l.Pokok)}</b> (${terbilang(l.Pokok)}) untuk keperluan: ${esc(l.Keperluan || '-')}.`],
-          ['Pasal 2 — Bunga & Jangka Waktu', `Atas pembiayaan tersebut dikenakan bunga flat <b>${l.Bunga_Persen}% per bulan</b> dari pokok awal, selama <b>${l.Tenor} bulan</b>, sehingga total bunga ${fmtRp(l.Total_Bunga)} dan total kewajiban <b>${fmtRp(l.Total_Tagihan)}</b>. Persentase ini tetap hingga akhir akad.`],
-          ['Pasal 3 — Cara Pembayaran', `PIHAK KEDUA membayar angsuran <b>${fmtRp(l.Angsuran_per_Bulan)}</b> per bulan melalui pemotongan payroll gaji ${esc(st0.SEKOLAH || '')} setiap tanggal ${st0.TGL_JATUH_TEMPO}, dimulai ${rows[0] ? longDate(rows[0].Jatuh_Tempo) : 'bulan berikutnya setelah pencairan'}.`]]
+          ['Pasal 2 — Bunga & Jangka Waktu', `Atas pembiayaan tersebut dikenakan bunga <b>${fmtPct(Calc.loanPct(l))}% dari pokok pinjaman</b>, yaitu <b>${fmtRp(l.Total_Bunga)}</b> untuk seluruh jangka waktu <b>${l.Tenor} bulan</b> (tidak bertambah karena lamanya tenor), sehingga total kewajiban <b>${fmtRp(l.Total_Tagihan)}</b> yang dibayar rata (flat) setiap bulan. Jumlah ini tetap hingga akhir akad.`],
+          ['Pasal 3 — Cara Pembayaran', `PIHAK KEDUA membayar angsuran <b>${fmtRp(l.Angsuran_per_Bulan)}</b> per bulan melalui <b>pemotongan gaji</b> ${esc(st0.SEKOLAH || '')} <b>setiap tanggal ${tglPotong()}</b>, dimulai ${rows[0] ? longDate(rows[0].Jatuh_Tempo) : 'bulan berikutnya setelah pencairan'}.`]]
           : [['Pasal 1 — Objek Akad', `PIHAK PERTAMA menjual kepada PIHAK KEDUA barang: <b>${esc(brg.Nama || l.ID_Barang)}</b> sebanyak ${l.Qty} ${esc(brg.Satuan || 'unit')} (${esc(brg.Spesifikasi || '')}) yang telah dimiliki secara sah (qabdh) oleh koperasi.`],
-            ['Pasal 2 — Harga & Margin', `Harga pokok barang <b>${fmtRp(l.Pokok)}</b> ditambah margin flat <b>${l.Bunga_Persen}% per bulan</b> selama ${l.Tenor} bulan (${fmtRp(l.Total_Bunga)}), sehingga harga jual murabahah <b>${fmtRp(l.Total_Tagihan)}</b> (${terbilang(l.Total_Tagihan)}), disepakati sejak awal dan tidak berubah.`],
-            ['Pasal 3 — Serah Terima & Pembayaran', `Barang diserahterimakan pada ${longDate(l.Tgl_Cair || T())}. PIHAK KEDUA membayar angsuran <b>${fmtRp(l.Angsuran_per_Bulan)}</b> per bulan melalui potong payroll setiap tanggal ${st0.TGL_JATUH_TEMPO}.`]];
+            ['Pasal 2 — Harga & Margin', `Harga pokok barang <b>${fmtRp(l.Pokok)}</b> ditambah margin <b>${fmtPct(Calc.loanPct(l))}% dari harga barang</b> sebesar ${fmtRp(l.Total_Bunga)} untuk seluruh jangka waktu ${l.Tenor} bulan, sehingga harga jual murabahah <b>${fmtRp(l.Total_Tagihan)}</b> (${terbilang(l.Total_Tagihan)}), disepakati sejak awal dan tidak berubah.`],
+            ['Pasal 3 — Serah Terima & Pembayaran', `Barang diserahterimakan pada ${longDate(l.Tgl_Cair || T())}. PIHAK KEDUA membayar angsuran <b>${fmtRp(l.Angsuran_per_Bulan)}</b> per bulan melalui <b>pemotongan gaji</b> ${esc(st0.SEKOLAH || '')} <b>setiap tanggal ${tglPotong()}</b>, dimulai ${rows[0] ? longDate(rows[0].Jatuh_Tempo) : 'bulan berikutnya setelah serah terima'}.`]];
         pasal.push(['Pasal 4 — Pelunasan Dipercepat', `PIHAK KEDUA boleh melunasi lebih cepat tanpa penalti.${String(st0.DISKON_PELUNASAN) === 'ya' ? ' Bunga/margin cicilan yang belum jatuh tempo dibebaskan (ibra\').' : ''}`],
           ['Pasal 5 — Keterlambatan', String(st0.DENDA_AKTIF) === 'ya' ? `Keterlambatan lebih dari ${st0.DENDA_TENGGANG} hari dikenakan denda ${fmtRp(st0.DENDA_NOMINAL)} per minggu sesuai ketetapan pengurus.` : 'Keterlambatan pembayaran diselesaikan secara musyawarah (tabayyun & ta\'awun) tanpa denda bunga berbunga.'],
           ['Pasal 6 — Penyelesaian Perselisihan', 'Segala perselisihan diselesaikan secara musyawarah untuk mufakat, dan apabila tidak tercapai, diselesaikan sesuai AD/ART koperasi.']);
@@ -2054,7 +2083,7 @@ const Docs = {
     const l = D.loans[Sync.idMap[id] || id]; if (!l) return;
     Logo.png().then(() => {
       const a = D.anggota[l.ID_Anggota] || { Nama: angName(l.ID_Anggota) }, rows = D.rows[l.ID_Pinjaman] || [];
-      const body = Docs.kv([['Debitur', `<b>${esc(a.Nama)}</b> (${esc(l.ID_Anggota)})`, 1], ['Fasilitas', (l.Jenis === 'uang' ? 'Pinjaman uang ' : 'Murabahah ') + l.Bunga_Persen + '% flat / bulan — ' + loanLabel(l)], ['Plafon / tenor', fmtRp(l.Pokok) + ' / ' + l.Tenor + ' bulan'], ['Tanggal pencairan', longDate(l.Tgl_Cair || T())], ['Status', cap(l.Status) + ' • sisa ' + fmtRp(l.Sisa_Tagihan)]]) +
+      const body = Docs.kv([['Debitur', `<b>${esc(a.Nama)}</b> (${esc(l.ID_Anggota)})`, 1], ['Fasilitas', (l.Jenis === 'uang' ? 'Pinjaman uang, bunga ' : 'Murabahah, margin ') + fmtPct(Calc.loanPct(l)) + '% total (flat tiap bulan) — ' + loanLabel(l)], ['Plafon / tenor', fmtRp(l.Pokok) + ' / ' + l.Tenor + ' bulan'], ['Tanggal pencairan', longDate(l.Tgl_Cair || T())], ['Status', cap(l.Status) + ' • sisa ' + fmtRp(l.Sisa_Tagihan)]]) +
         `<table class="grid" style="margin-top:10px"><tr><th>Ke</th><th>Jatuh Tempo</th><th class="r">Pokok</th><th class="r">${l.Jenis === 'uang' ? 'Bunga' : 'Margin'}</th><th class="r">Denda</th><th class="r">Total</th><th>Tgl Bayar</th><th>No. Kwitansi</th><th class="c">Status</th></tr>
         ${rows.map((r, i) => { const s = Calc.sisaRow(r); return `<tr class="${i % 2 ? 'alt' : ''}"><td class="c">${r.Cicilan_Ke}</td><td>${fmtDate(r.Jatuh_Tempo)}</td><td class="r">${fmtNum(r.Pokok)}</td><td class="r">${fmtNum(r.Bunga)}</td><td class="r">${fmtNum(r.Denda)}</td><td class="r b">${fmtNum(num(r.Pokok) + num(r.Bunga) + num(r.Denda))}</td><td>${r.Tgl_Bayar ? fmtDate(r.Tgl_Bayar) : ''}</td><td>${esc(r.No_Bukti && !String(r.No_Bukti).startsWith('tmp_') ? r.No_Bukti : '')}</td><td class="c b" style="color:${s === 0 ? '#15803D' : r.Jatuh_Tempo < T() ? '#B91C1C' : '#6B7280'}">${s === 0 ? 'LUNAS' : num(r.Dibayar) ? 'SEBAGIAN' : r.Jatuh_Tempo < T() ? 'LEWAT' : '-'}</td></tr>`; }).join('')}
         <tr class="tot"><td colspan="2">TOTAL</td><td class="r">${fmtNum(sum(rows, 'Pokok'))}</td><td class="r">${fmtNum(sum(rows, 'Bunga'))}</td><td class="r">${fmtNum(sum(rows, 'Denda'))}</td><td class="r">${fmtNum(sum(rows, r => num(r.Pokok) + num(r.Bunga) + num(r.Denda)))}</td><td colspan="3">Terbayar ${fmtNum(sum(rows, 'Dibayar'))}</td></tr></table>`;
@@ -2069,8 +2098,8 @@ const Docs = {
         const l = D.loans[p.ID_Pinjaman] || {}, a = D.anggota[p.ID_Anggota] || { Nama: angName(p.ID_Anggota) };
         const after = (D.pays[p.ID_Pinjaman] || []).filter(x => (x.Tanggal + x.No_Bukti) <= (p.Tanggal + p.No_Bukti)).reduce((s, x) => s + num(x.Jumlah) + num(x.Diskon), 0);
         const body = Docs.kv([['Telah terima dari', `<b>${esc(a.Nama)}</b> (${esc(p.ID_Anggota)})`, 1], ['Uang sejumlah', `<b>${fmtRp(p.Jumlah)}</b>`, 1], ['Terbilang', `<i>${terbilang(p.Jumlah)}</i>`, 1],
-          ['Untuk pembayaran', 'Angsuran ke-' + p.Cicilan + ' ' + (l.Jenis === 'barang' ? 'murabahah ' : 'pinjaman uang ') + (l.No_Perjanjian || p.ID_Pinjaman) + (p.Mode === 'lunas' ? ' (PELUNASAN DIPERCEPAT)' : '')], ['Tanggal bayar', longDate(p.Tanggal)], ['Metode', p.Metode === 'payroll' ? 'Potong payroll gaji' : cap(p.Metode)]]) +
-          `<table class="grid" style="margin-top:10px"><tr><th>Rincian</th><th class="r">Jumlah (Rp)</th></tr><tr><td>Pokok</td><td class="r">${fmtNum(p.Pokok)}</td></tr><tr class="alt"><td>${l.Jenis === 'barang' ? 'Margin murabahah' : 'Bunga'} (${l.Bunga_Persen || '-'}% flat)</td><td class="r">${fmtNum(p.Bunga)}</td></tr><tr><td>Denda keterlambatan</td><td class="r">${fmtNum(p.Denda)}</td></tr>
+          ['Untuk pembayaran', 'Angsuran ke-' + p.Cicilan + ' ' + (l.Jenis === 'barang' ? 'murabahah ' : 'pinjaman uang ') + (l.No_Perjanjian || p.ID_Pinjaman) + (p.Mode === 'lunas' ? ' (PELUNASAN DIPERCEPAT)' : '')], ['Tanggal bayar', longDate(p.Tanggal)], ['Metode', p.Metode === 'payroll' ? 'Potong gaji' : cap(p.Metode)]]) +
+          `<table class="grid" style="margin-top:10px"><tr><th>Rincian</th><th class="r">Jumlah (Rp)</th></tr><tr><td>Pokok</td><td class="r">${fmtNum(p.Pokok)}</td></tr><tr class="alt"><td>${l.Jenis === 'barang' ? 'Margin murabahah' : 'Bunga'} (${fmtPct(Calc.loanPct(l))}% total)</td><td class="r">${fmtNum(p.Bunga)}</td></tr><tr><td>Denda keterlambatan</td><td class="r">${fmtNum(p.Denda)}</td></tr>
           ${num(p.Diskon) ? `<tr class="alt"><td>Potongan margin pelunasan (ibra')</td><td class="r">(${fmtNum(p.Diskon)})</td></tr>` : ''}<tr class="tot"><td>TOTAL DITERIMA</td><td class="r">${fmtNum(p.Jumlah)}</td></tr></table>
           <div class="box"><table><tr><td>Sisa tagihan setelah pembayaran ini</td><td class="r b" style="font-size:14px">${fmtRp(Math.max(0, num(l.Total_Tagihan) + sum((D.rows[p.ID_Pinjaman] || []), r => num(r.Denda)) - after))}</td></tr></table>${p.Keterangan ? `<div class="terb">Catatan: ${esc(p.Keterangan)}</div>` : ''}</div>`;
         Docs.preview({ title: 'Kwitansi Pembayaran Angsuran', no: p.No_Bukti, idAnggota: p.ID_Anggota, file: 'Kwitansi ' + p.No_Bukti,

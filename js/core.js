@@ -1,6 +1,6 @@
 /**
  * ============================================================
- * SIMPEL-KOP — Frontend inti (js/core.js) • v1.4.2 GitHub Pages + GAS REST API
+ * SIMPEL-KOP — Frontend inti (js/core.js) • v1.4.5 GitHub Pages + GAS REST API
  * SPA murni + Instant UX:
  *  1. Semua halaman ada di DOM; navigasi = tampil/sembunyi section (0 ms, tanpa panggilan server)
  *  2. Optimistic UI: state lokal berubah seketika, sinkron ke server di latar (antrean + rollback)
@@ -355,10 +355,13 @@ document.addEventListener('input', e => { const g = e.target.closest && e.target
 // BAGIAN 8: KALKULASI BISNIS (identik dengan server → Optimistic UI akurat)
 // ════════════════════════════════════════════════════════
 const Calc = {
-  /** Bunga flat per bulan dari pokok awal. */
+  /**
+   * Bunga/margin = persen × pokok, SEKALI untuk seluruh akad (tidak dikali tenor) — identik dengan server.
+   * Tenor panjang atau pendek → total bunga sama; angsuran = (pokok + bunga) ÷ tenor, flat tiap bulan.
+   */
   pinjaman(pokok, persen, tenor) {
     pokok = num(pokok); tenor = num(tenor) || 1;
-    const totalBunga = Math.round(pokok * num(persen) / 100 * tenor);
+    const totalBunga = Math.round(pokok * num(persen) / 100);
     const total = pokok + totalBunga;
     return { pokok, totalBunga, total, angsuran: Math.round(total / tenor), bungaBulan: Math.round(totalBunga / tenor), pokokBulan: Math.round(pokok / tenor) };
   },
@@ -368,7 +371,7 @@ const Calc = {
     for (let k = 1; k <= Tn; k++) {
       const pk = k === Tn ? P - pp * (Tn - 1) : pp, bg = k === Tn ? B - bb * (Tn - 1) : bb;
       rows.push({ ID_Angsuran: loan.ID_Pinjaman + '#' + pad2(k), ID_Pinjaman: loan.ID_Pinjaman, Jenis: loan.Jenis, Cicilan_Ke: k,
-        Jatuh_Tempo: addMonths(tglCair, k, num(S.settings.TGL_JATUH_TEMPO) || 10), Tgl_Bayar: '', Pokok: pk, Bunga: bg, Denda: 0, Total: pk + bg,
+        Jatuh_Tempo: addMonths(tglCair, k, tglPotong()), Tgl_Bayar: '', Pokok: pk, Bunga: bg, Denda: 0, Total: pk + bg,
         Bayar_Pokok: 0, Bayar_Bunga: 0, Bayar_Denda: 0, Dibayar: 0, Status: 'belum', Dicatat_Oleh: '', No_Bukti: '' });
     }
     return rows;
@@ -417,6 +420,17 @@ const Calc = {
   },
   saldo(id, jenis) {
     return S.db.simpanan.reduce((s, x) => (x.ID_Anggota === id && x.Jenis === jenis && x.Status !== 'batal') ? s + (x.Tipe === 'tarik' ? -1 : 1) * num(x.Jumlah) : s, 0);
+  },
+  /** Persen bunga/margin total yang berlaku (Pengaturan BUNGA_TOTAL_*), bawaan uang 10% & barang 20%. */
+  rate(jenis, src) {
+    const s = src || S.settings || {}, k = jenis === 'barang' ? 'BUNGA_TOTAL_BARANG' : 'BUNGA_TOTAL_UANG';
+    return s[k] === undefined || s[k] === '' ? (jenis === 'barang' ? 20 : 10) : num(s[k]);
+  },
+  /** Persen bunga total sebuah akad, dihitung dari Total_Bunga ÷ Pokok (benar untuk akad lama & baru). */
+  loanPct(l) {
+    const p = num(l.Pokok), b = num(l.Total_Bunga);
+    if (!p) return num(l.Bunga_Persen);
+    return Math.round(b / p * 10000) / 100;
   },
   /** Rentang tenor yang diizinkan (Pengaturan → TENOR_MIN_/TENOR_MAX_), bawaan 3–20 bulan. */
   tenorRange(jenis, src) {
@@ -634,7 +648,11 @@ function loanBadge(l) {
   if (l.Status === 'berjalan' && D.tunggakan && D.tunggakan.find(t => t.loan.ID_Pinjaman === l.ID_Pinjaman)) return badge('Menunggak', 'b-red', 'bi-exclamation-triangle');
   const s = LOAN_STATUS[l.Status] || [cap(l.Status), 'b-gray']; return badge(s[0], s[1], s[2]);
 }
-const jenisBadge = l => l.Jenis === 'barang' ? badge('Barang ' + l.Bunga_Persen + '%', 'b-gold', 'bi-box-seam') : badge('Uang ' + l.Bunga_Persen + '% Flat', 'b-green', 'bi-cash-coin');
+const jenisBadge = l => l.Jenis === 'barang' ? badge('Barang ' + fmtPct(Calc.loanPct(l)) + '%', 'b-gold', 'bi-box-seam') : badge('Uang ' + fmtPct(Calc.loanPct(l)) + '% Flat', 'b-green', 'bi-cash-coin');
+/** Tanggal potong gaji untuk angsuran pinjaman uang & barang (Pengaturan TGL_POTONG_GAJI), bawaan 25. */
+const tglPotong = () => num((S.settings || {}).TGL_POTONG_GAJI) || 25;
+/** Angka persen ringkas: 10 → "10", 12.5 → "12,5". */
+const fmtPct = x => String(Math.round(num(x) * 100) / 100).replace('.', ',');
 function rowBadge(r) {
   const sisa = Calc.sisaRow(r), t = T();
   if (sisa === 0) return badge('Lunas', 'b-success', 'bi-check-lg');
@@ -811,7 +829,7 @@ const Nav = {
         if (m[4] && !m[4].includes(S.role)) return '';
         return `<li><button class="sb-link" data-nav="${m[0]}" ${on('Nav.go', m[0])} title="${esc(m[1])}"><i class="bi ${m[2]}"></i><span>${esc(m[1])}</span>${m[3] ? `<span class="sb-badge" data-badge="${m[3]}"></span><span class="sb-dot" data-dot="${m[3]}" hidden></span>` : ''}</button></li>`;
       }).join('');
-      document.getElementById('sbFoot').innerHTML = `<button class="sb-link sb-collapse" onclick="UI.collapse()" title="Lipat menu"><i class="bi bi-layout-sidebar-inset"></i><span>Lipat menu</span></button>SIMPEL-KOP v${esc(BOOT.version || '1.4.2')} • ${esc(S.settings.SEKOLAH || 'SMK Islam PB. Soedirman 2')}`;
+      document.getElementById('sbFoot').innerHTML = `<button class="sb-link sb-collapse" onclick="UI.collapse()" title="Lipat menu"><i class="bi bi-layout-sidebar-inset"></i><span>Lipat menu</span></button>SIMPEL-KOP v${esc(BOOT.version || '1.4.5')} • ${esc(S.settings.SEKOLAH || 'SMK Islam PB. Soedirman 2')}`;
     }
     const bottom = staff ? MENU.bottomStaff : MENU.bottomMember;
     document.getElementById('bottomNav').innerHTML = bottom.map(b => `<button class="bn-item" data-nav="${b[0]}" ${on('Nav.go', b[0])}><i class="bi ${b[2]}"></i><span>${esc(b[1])}</span>${b[0] === 'pinjaman' || b[0] === 'm-pinjaman' ? '<span class="bn-dot" data-dot="bn" hidden></span>' : ''}</button>`).join('');

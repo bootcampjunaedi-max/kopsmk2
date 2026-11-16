@@ -1,4 +1,4 @@
-# SIMPEL-KOP v1.4.2 — Panduan Instalasi (GAS REST API + GitHub Pages)
+# SIMPEL-KOP v1.4.5 — Panduan Instalasi (GAS REST API + GitHub Pages)
 
 Arsitektur baru:
 
@@ -22,12 +22,12 @@ Tidak ada lagi `Index.html`, `Stylesheet.html`, `JavaScript.html` di Apps Script
 
 Pilih **salah satu** jalur.
 
-### A0. Sudah memasang v1.4.0 / v1.4.1 (update ke v1.4.2 — hapus anggota & tenor 3–20 bulan)
+### A0. Sudah memasang v1.4.0 – v1.4.4 (update ke v1.4.5 — hapus anggota, tenor 3–20 bln, bunga 10%/20% total, potong gaji otomatis tgl 25)
 
 1. Ganti seluruh isi `Kode.gs` di editor Apps Script → **Manage deployments → ✏️ Edit → New version → Deploy**.
 2. Ganti berkas frontend di folder repo dengan isi ZIP baru (**jangan** timpa `js/config.js` Anda — atau isi ulang `GAS_URL`), lalu:
-   `git add .` → `git commit -m "v1.4.2"` → `git push`.
-3. Tenor 3–20 bulan **langsung berlaku** setelah backend di-deploy — tidak perlu mengubah apa pun di Pengaturan. (Baris lama `TENOR_UANG` / `TENOR_BARANG` di sheet Pengaturan tidak dipakai lagi dan boleh dihapus.)
+   `git add .` → `git commit -m "v1.4.5"` → `git push`.
+3. Tenor 3–20 bulan, bunga 10% (uang) / 20% (barang), dan potong gaji tanggal 25 **langsung berlaku** setelah backend di-deploy — tidak perlu mengubah apa pun di Pengaturan. Baris lama `TENOR_UANG`, `TENOR_BARANG`, `BUNGA_UANG`, `BUNGA_BARANG`, `TGL_JATUH_TEMPO` di sheet Pengaturan tidak dipakai lagi dan boleh dihapus.
 
 ### A1. Sudah memakai SIMPEL-KOP v1.3.0 (data lama tetap dipakai)
 
@@ -55,10 +55,10 @@ Pilih **salah satu** jalur.
 Buka URL `/exec` di browser. Harus tampil JSON seperti:
 
 ```json
-{"success":true,"data":{"app":"SIMPEL-KOP","version":"1.4.2","ready":true,...},"message":"pong"}
+{"success":true,"data":{"app":"SIMPEL-KOP","version":"1.4.5","ready":true,...},"message":"pong"}
 ```
 
-Jika `"version"` bukan `1.4.2` atau yang tampil halaman aplikasi lama, berarti versi baru belum di-deploy (ulangi langkah Deploy → New version).
+Jika `"version"` bukan `1.4.5` atau yang tampil halaman aplikasi lama, berarti versi baru belum di-deploy (ulangi langkah Deploy → New version).
 
 > **Setiap kali `Kode.gs` diubah:** Manage deployments → ✏️ Edit → **New version** → Deploy. Jangan membuat *New deployment* — itu menghasilkan URL baru dan `js/config.js` harus diubah lagi.
 
@@ -119,7 +119,7 @@ Windows (PowerShell): `cd "$HOME\Downloads\simpel-kop"` lalu `dir`.
 ```bash
 git init
 git add .
-git commit -m "SIMPEL-KOP v1.4.2 frontend"
+git commit -m "SIMPEL-KOP v1.4.5 frontend"
 git branch -M main
 git remote add origin https://github.com/USERNAME/simpel-kop.git
 git push -u origin main
@@ -167,6 +167,51 @@ Halaman masuk di GitHub Pages bisa dibuka siapa saja, jadi akun uji coba harus d
 4. Isi **Pengaturan → Simpanan & Modal → Saldo kas awal** sesuai kas riil.
 
 Alamat `GAS_URL` di repository publik tidak berbahaya: setiap aksi data membutuhkan token sesi, login dibatasi 5 kali gagal per 10 menit, dan hak akses dicek di server.
+
+## Bunga & margin pinjaman (total, flat tiap bulan)
+
+| Jenis | Bunga/margin | Contoh |
+|---|---|---|
+| Pinjaman uang | **10% dari besar pinjaman** | Rp 5.000.000 → bunga Rp 500.000, total Rp 5.500.000 |
+| Pinjaman barang | **20% dari harga pembelian barang** | Barang Rp 8.000.000 → margin Rp 1.600.000, total Rp 9.600.000 |
+
+Bunga dihitung **sekali untuk seluruh akad** — tenor panjang atau pendek, total bunganya sama. Angsuran = (pokok + bunga) ÷ tenor, **sama besar setiap bulan**:
+
+| Pinjaman uang Rp 5.000.000 | 3 bln | 5 bln | 10 bln | 20 bln |
+|---|---|---|---|---|
+| Total bunga | Rp 500.000 | Rp 500.000 | Rp 500.000 | Rp 500.000 |
+| Angsuran / bulan | Rp 1.833.333* | Rp 1.100.000 | Rp 550.000 | Rp 275.000 |
+
+\*Selisih pembulatan masuk ke cicilan terakhir, sehingga jumlah seluruh cicilan tepat Rp 5.500.000.
+
+- Ubah persentasenya di **Pengaturan → Margin & Pembiayaan** (*Bunga koperasi (total)* dan *Margin toko (total)*, 0–100%).
+- Hanya berlaku untuk **pengajuan baru**. Akad lama tetap dengan angka yang sudah disepakati; tampilannya otomatis disesuaikan (mis. akad lama 1%/bln × 10 bln tampil sebagai "10% total").
+- Kolom `Bunga_Persen` di sheet pinjaman: untuk akad baru berarti **persen total**. Angka rupiah yang mengikat tetap `Total_Bunga`.
+- **Pelunasan dipercepat:** bila *Diskon margin pada pelunasan dipercepat* aktif (bawaan), bunga cicilan yang belum jatuh tempo dibebaskan. Matikan sakelar itu bila anggota yang melunasi lebih cepat tetap harus membayar bunga penuh 10%/20%.
+
+## Pembayaran angsuran: dipotong gaji setiap tanggal 25
+
+Angsuran pinjaman uang maupun pembelian barang **dipotong dari gaji setiap tanggal 25**. Tanggal ini sekaligus menjadi tanggal jatuh tempo di jadwal angsuran: cicilan pertama jatuh pada tanggal 25 bulan berikutnya setelah pencairan/serah terima, lalu setiap tanggal 25 sesudahnya.
+
+- Tampil di formulir pengajuan, persetujuan akad, Surat Perjanjian Pasal 3 (uang & barang), detail pinjaman, halaman anggota, dashboard, dan email pengingat.
+- Ubah di **Pengaturan → Margin & Pembiayaan → Tanggal potong gaji (angsuran)** (1–28).
+- Berlaku untuk **pinjaman yang dicairkan setelah update**. Jadwal pinjaman yang sudah berjalan tetap memakai tanggal lamanya.
+
+### Angsuran terpotong otomatis setiap tanggal 25
+
+Setiap tanggal 25 pukul 06.00, sistem otomatis mencatat **cicilan bulan itu** dari semua pinjaman uang dan pembelian barang yang sedang berjalan sebagai **terbayar lewat potong gaji**:
+
+- kwitansi resmi terbit (metode: *Potong gaji*, dicatat oleh "Potong gaji otomatis"), **sisa tagihan berkurang**, dan pinjaman otomatis **LUNAS** bila itu cicilan terakhir;
+- anggota menerima email rincian potongan & sisa tagihan; Bendahara menerima ringkasan (isi *Email bendahara* di Pengaturan → Identitas & KOP) untuk dicocokkan dengan potongan gaji dari bagian keuangan sekolah;
+- **tunggakan bulan-bulan sebelumnya tidak ikut dipotong** — tetap muncul di *Monitoring Tunggakan* dan ditagih lewat Loket;
+- hanya sekali per bulan; bila trigger sempat terlewat (mis. server Google gangguan), dikejar keesokan harinya dengan tanggal bayar tetap tanggal 25;
+- **berlaku mulai tanggal 25 berikutnya** setelah fitur aktif. Jika update dipasang sesudah tanggal 25, bulan itu tidak dipotong otomatis (bisa diproses manual).
+
+**Syarat:** trigger harian harus terpasang (jalur A2 langkah 5: jalankan `setupTriggers` sekali; instalasi lama yang sudah punya trigger tidak perlu apa-apa).
+
+**Proses manual** (mis. gaji cair lebih awal): Admin/Bendahara → **Angsuran & Loket → tombol "Potong Gaji Tgl 25"** → lihat daftar cicilan bulan ini → **Proses Sekarang**. Setelah diproses (manual atau otomatis), bulan itu tidak akan dipotong dua kali.
+
+**Mematikan:** Pengaturan → Margin & Pembiayaan → sakelar *Potong gaji otomatis setiap tanggal 25*.
 
 ## Tenor pinjaman (3–20 bulan)
 
