@@ -815,3 +815,13 @@ body.hide-fab .fab { display: none !important; }
   table.tbl.to-cards tr:has(td.td-sel) td.td-main { padding-right: 34px; }
   .bulk-bar .bulk-count { width: 100%; }
 }
+
+/* ── Unggah logo koperasi (v1.4.6) ── */
+.logo-up { display: flex; align-items: center; gap: 18px; }
+.logo-prev { position: relative; flex: none; width: 120px; height: 120px; border-radius: 18px; border: 1px dashed var(--border); display: grid; place-items: center;
+  background-color: var(--surface); background-image: linear-gradient(45deg, rgba(127,127,127,.08) 25%, transparent 25%, transparent 75%, rgba(127,127,127,.08) 75%), linear-gradient(45deg, rgba(127,127,127,.08) 25%, transparent 25%, transparent 75%, rgba(127,127,127,.08) 75%);
+  background-size: 16px 16px; background-position: 0 0, 8px 8px; }
+.logo-prev.busy img, .logo-prev.busy svg { opacity: .45; }
+.logo-busy { position: absolute; inset: 0; display: grid; place-items: center; }
+.logo-up-body { min-width: 0; }
+@media (max-width: 575.98px) { .logo-up { flex-direction: column; align-items: flex-start; } }

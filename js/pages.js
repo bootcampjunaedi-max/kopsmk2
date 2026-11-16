@@ -1580,7 +1580,14 @@ Pages.pengaturan = {
     else if (s.tab === 'simpanan') box.innerHTML = `<div class="card-k"><div class="card-head"><div><h3><i class="bi bi-piggy-bank"></i> Pengaturan Simpanan Pokok & Wajib</h3><p>Ketetapan iuran & setoran awal sesuai AD/ART</p></div>${badge('AD/ART Pasal 8', 'b-gray')}</div>
       <div class="form-grid cols-2">${F('SIMPANAN_POKOK', 'Simpanan pokok (1× pendaftaran)', 'money', 'Terkunci oleh ketetapan Rapat Anggota Tahunan')}${F('SIMPANAN_WAJIB', 'Simpanan wajib per bulan', 'money', 'Diproses via potong payroll')}${F('MODAL_AWAL', 'Saldo kas awal / cadangan modal', 'money', 'Dasar perhitungan Kas & Ekuitas di Neraca')}</div></div>`;
     else if (s.tab === 'nomor') { box.innerHTML = `<div class="card-k"><div class="card-head"><div><h3><i class="bi bi-hash"></i> Format Penomoran Dokumen</h3><p>Token: {YYYY} tahun, {YY}, {MM} bulan, {NNN} penghitung (jumlah N = digit)</p></div></div><div id="fmtList" class="stack"></div></div>`; Pages.pengaturan.fmtPreview(); }
-    else if (s.tab === 'identitas') box.innerHTML = `<div class="card-k mb-3"><div class="card-head"><h3><i class="bi bi-building"></i> Identitas Lembaga (KOP Surat)</h3></div><div class="form-grid cols-2">${F('NAMA_KOPERASI', 'Nama resmi koperasi', 'text', '', 'full')}${F('NAMA_APLIKASI', 'Nama aplikasi')}${F('SEKOLAH', 'Sekolah / unit')}${F('ALAMAT', 'Alamat', 'text', '', 'full')}${F('TELEPON', 'Telepon')}${F('EMAIL_KOPERASI', 'Email koperasi')}${F('BADAN_HUKUM', 'No. badan hukum')}${F('LOGO_URL', 'URL logo (opsional)', 'text', 'Kosongkan untuk logo khatam bawaan')}</div></div>
+    else if (s.tab === 'identitas') box.innerHTML = `<div class="card-k mb-3" id="logoCard"><div class="card-head"><div><h3><i class="bi bi-image"></i> Logo Koperasi</h3><p>Tampil di halaman masuk, menu aplikasi, ikon tab browser, dan KOP semua dokumen PDF</p></div><span id="logoBadge">${Logo.url() ? badge('Logo unggahan', 'b-green') : badge('Logo bawaan', 'b-gray')}</span></div>
+        <div class="logo-up"><div class="logo-prev" id="logoPrev">${Logo.html(96)}</div><div class="logo-up-body">
+          <div class="small">Unggah gambar logo resmi koperasi. Gambar <b>otomatis diperkecil</b> menjadi maks. 256 piksel sebelum dikirim.</div>
+          <div class="xs muted mt-1">PNG, JPG, WebP, atau SVG • maks. 5 MB • PNG berlatar transparan paling rapi (juga di mode gelap).</div>
+          <div class="row-gap mt-2"><button type="button" class="btn btn-sm btn-primary" id="btnLogoUp" onclick="document.getElementById('logoFile').click()"><i class="bi bi-upload"></i> Unggah Logo</button><input type="file" id="logoFile" accept="image/png,image/jpeg,image/webp,image/svg+xml" hidden onchange="Pages.pengaturan.logoPilih(this)">
+            <button type="button" class="btn btn-sm btn-outline" id="btnLogoHapus" onclick="Pages.pengaturan.logoHapus()" ${Logo.url() ? '' : 'disabled'}><i class="bi bi-arrow-counterclockwise"></i> Gunakan logo bawaan</button></div>
+        </div></div></div>
+      <div class="card-k mb-3"><div class="card-head"><h3><i class="bi bi-building"></i> Identitas Lembaga (KOP Surat)</h3></div><div class="form-grid cols-2">${F('NAMA_KOPERASI', 'Nama resmi koperasi', 'text', '', 'full')}${F('NAMA_APLIKASI', 'Nama aplikasi')}${F('SEKOLAH', 'Sekolah / unit')}${F('ALAMAT', 'Alamat', 'text', '', 'full')}${F('TELEPON', 'Telepon')}${F('EMAIL_KOPERASI', 'Email koperasi')}${F('BADAN_HUKUM', 'No. badan hukum')}</div></div>
       <div class="card-k mb-3"><div class="card-head"><h3><i class="bi bi-pen"></i> Penandatangan Dokumen</h3></div><div class="form-grid cols-3">${F('KETUA', 'Ketua koperasi')}${F('BENDAHARA', 'Bendahara')}${F('PENGAWAS', 'Pengawas / DPS')}</div></div>
       <div class="card-k"><div class="card-head"><h3><i class="bi bi-envelope"></i> Notifikasi & Tampilan Login</h3></div>${F('EMAIL_BENDAHARA', 'Email bendahara (ringkasan tunggakan)')}${F('NOTIF_EMAIL', 'Kirim email pengingat & notifikasi', 'switch', 'Pengingat H-3 & H-0, persetujuan pinjaman, ringkasan tunggakan')}${F('MODE_DEMO', 'Tampilkan akun uji coba di halaman login', 'switch', '<b class="text-danger">Matikan sebelum dipakai resmi</b>')}</div>`;
     else if (s.tab === 'pengguna') box.innerHTML = `<div class="card-k flush"><div class="card-head card-pad-x pt-3 mb-2"><div><h3><i class="bi bi-people"></i> Pengguna & Hak Akses (RBAC)</h3><p>Hak akses diberlakukan di server pada setiap aksi</p></div><button class="btn btn-sm btn-primary" onclick="Pages.pengaturan.user()"><i class="bi bi-person-plus"></i> Tambah</button></div>
@@ -1617,9 +1624,69 @@ Pages.pengaturan = {
       <div class="xs muted mt-2"><b>Formula:</b> Total bunga = Pokok × % (sekali, tidak dikali tenor); Angsuran = (Pokok + Total bunga) ÷ Tenor, flat tiap bulan. Tenor panjang atau pendek, total bunga sama. Tidak ada bunga berbunga.</div></div>
       <div class="card-k"><div class="card-head"><h3><i class="bi bi-pen"></i> KOP & Penandatangan</h3></div><div class="small"><b>${esc(d.NAMA_KOPERASI)}</b><div class="muted">${esc(d.SEKOLAH)} • Badan Hukum ${esc(d.BADAN_HUKUM)}</div></div><div class="list mt-2">${[['Ketua', d.KETUA], ['Bendahara', d.BENDAHARA], ['Pengawas / DPS', d.PENGAWAS]].map((x, i) => `<div class="list-item"><span class="li-icon">${i + 1}</span><div class="li-body"><b>${esc(x[1])}</b><span>${x[0]}</span></div><i class="bi bi-patch-check text-primary"></i></div>`).join('')}</div></div>`;
   },
+  // ── Logo koperasi ──
+  /** Pilih gambar → perkecil di browser (maks. 256 px) → tampil seketika → unggah di latar. */
+  logoPilih(inp) {
+    const f = inp.files && inp.files[0]; inp.value = '';
+    if (!f) return;
+    if (!/^image\/(png|jpeg|webp|svg\+xml)$/.test(f.type)) { toast('Pilih berkas gambar PNG, JPG, WebP, atau SVG.', 'warning', 'Format tidak didukung'); return; }
+    if (f.size > 5 * 1024 * 1024) { toast('Ukuran gambar maksimal 5 MB.', 'warning', 'Berkas terlalu besar'); return; }
+    Pages.pengaturan.logoKecilkan(f).then(img => {
+      Pages.pengaturan.logoKirim({ base64: img.dataUrl.split(',')[1], mimeType: img.mime }, img.dataUrl);
+    }).catch(e => toast(e.message || 'Gambar tidak dapat dibaca.', 'danger', 'Logo gagal diproses'));
+  },
+  logoKecilkan(file) {
+    return new Promise((resolve, reject) => {
+      const rd = new FileReader();
+      rd.onerror = () => reject(new Error('Berkas tidak dapat dibaca.'));
+      rd.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error('Berkas bukan gambar yang valid.'));
+        img.onload = () => {
+          let w = img.naturalWidth || 256, h = img.naturalHeight || 256;
+          const k = Math.min(1, 256 / Math.max(w, h));
+          w = Math.max(1, Math.round(w * k)); h = Math.max(1, Math.round(h * k));
+          const c = document.createElement('canvas'); c.width = w; c.height = h;
+          const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(img, 0, 0, w, h);
+          let mime = 'image/png', url = c.toDataURL(mime);
+          if (url.length > 120000) { const wp = c.toDataURL('image/webp', 0.9); if (wp.indexOf('data:image/webp') === 0 && wp.length < url.length) { mime = 'image/webp'; url = wp; } }
+          if (url.length > 600000) { reject(new Error('Gambar terlalu besar/rumit untuk dijadikan logo. Coba gambar lain.')); return; }
+          resolve({ dataUrl: url, mime: mime });
+        };
+        img.src = rd.result;
+      };
+      rd.readAsDataURL(file);
+    });
+  },
+  /** Kirim ke server; tampilan langsung berganti dan dikembalikan bila server menolak. */
+  logoKirim(payload, preview) {
+    const lama = Logo.url();
+    Logo.set(preview); Pages.pengaturan.logoPrev(true);
+    Sync.push({ action: 'pengaturan.logo', payload, label: 'Logo',
+      ok: res => {
+        const ex = (res.data && res.data.extra) || {};
+        if (ex.settings) {
+          S.settings = Object.assign({}, S.settings, ex.settings); Store.saveData();
+          const dr = Pages.pengaturan.draft; if (dr) { dr.LOGO_FILE_ID = ex.settings.LOGO_FILE_ID; dr.LOGO_URL = ex.settings.LOGO_URL; }
+        }
+        Logo.set(ex.logo || ''); Pages.pengaturan.logoPrev(false);
+        toast(res.message, 'success', 'Logo disimpan');
+      },
+      fail: msg => { Logo.set(lama); Pages.pengaturan.logoPrev(false); toast(msg, 'danger', 'Logo tidak tersimpan'); } });
+  },
+  logoHapus() {
+    confirmDialog({ title: 'Gunakan logo bawaan?', text: 'Logo unggahan dipindah ke Sampah Google Drive dan diganti logo khatam bawaan aplikasi.', ok: 'Ya, gunakan bawaan' })
+      .then(yes => { if (yes) Pages.pengaturan.logoKirim({ hapus: true }, ''); });
+  },
+  logoPrev(busy) {
+    const p = document.getElementById('logoPrev'); if (p) { p.innerHTML = Logo.html(96) + (busy ? '<span class="logo-busy"><span class="spinner"></span></span>' : ''); p.classList.toggle('busy', !!busy); }
+    const h = document.getElementById('btnLogoHapus'); if (h) h.disabled = !!busy || !Logo.url();
+    const u = document.getElementById('btnLogoUp'); if (u) u.disabled = !!busy;
+    const b = document.getElementById('logoBadge'); if (b) b.innerHTML = Logo.url() ? badge('Logo unggahan', 'b-green') : badge('Logo bawaan', 'b-gray');
+  },
   save() {
     const d = Pages.pengaturan.draft, changes = {};
-    Object.keys(d).forEach(k => { if (String(d[k]) !== String(S.settings[k])) changes[k] = String(d[k]); });
+    Object.keys(d).forEach(k => { if (k !== 'LOGO_FILE_ID' && String(d[k]) !== String(S.settings[k])) changes[k] = String(d[k]); });
     if (!Object.keys(changes).length) return;
     const bad = Object.keys(changes).find(k => k.startsWith('FMT_') && !/\{N+\}/.test(changes[k]));
     if (bad) return toast('Format ' + bad + ' wajib memuat penghitung {NNN}.', 'warning');
@@ -1865,7 +1932,7 @@ Pages.profil = {
         ${Pages.profil.row('bi-headset', 'Bantuan & Hubungi Bendahara', 'Konsultasi pembiayaan & data anggota', 'Pages.mBeranda.setor()')}
       </div></div>
       <button class="btn btn-danger-soft btn-lg btn-block" onclick="Auth.logout()"><i class="bi bi-box-arrow-right"></i> Keluar dari Akun SIMPEL-KOP</button>
-      <div class="text-center xs muted">SIMPEL-KOP v${esc(BOOT.version || '1.4.5')} • Berlandaskan Prinsip Syariah<br>${esc(S.settings.NAMA_KOPERASI || '')}</div></div></div>`;
+      <div class="text-center xs muted">SIMPEL-KOP v${esc(BOOT.version || '1.4.6')} • Berlandaskan Prinsip Syariah<br>${esc(S.settings.NAMA_KOPERASI || '')}</div></div></div>`;
   },
   gantiSandi(wajib) {
     Modal.open({ title: 'Ganti Kata Sandi', icon: 'bi-key', sub: wajib ? 'Demi keamanan, ganti sandi sementara Anda sekarang.' : 'Gunakan minimal 8 karakter kombinasi huruf & angka',

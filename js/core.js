@@ -1,6 +1,6 @@
 /**
  * ============================================================
- * SIMPEL-KOP — Frontend inti (js/core.js) • v1.4.5 GitHub Pages + GAS REST API
+ * SIMPEL-KOP — Frontend inti (js/core.js) • v1.4.6 GitHub Pages + GAS REST API
  * SPA murni + Instant UX:
  *  1. Semua halaman ada di DOM; navigasi = tampil/sembunyi section (0 ms, tanpa panggilan server)
  *  2. Optimistic UI: state lokal berubah seketika, sinkron ke server di latar (antrean + rollback)
@@ -621,7 +621,24 @@ const Logo = {
     size = size || 34;
     return `<svg viewBox="0 0 64 64" width="${size}" height="${size}" role="img" aria-label="Logo koperasi"><g fill="none" stroke="#0F7B5F" stroke-width="3.2" stroke-linejoin="round"><rect x="15" y="15" width="34" height="34" rx="2"/><rect x="15" y="15" width="34" height="34" rx="2" transform="rotate(45 32 32)"/></g><circle cx="32" cy="32" r="10" fill="#E8F5F0" stroke="#0F7B5F" stroke-width="2"/><path d="M32 24.5c3.6 4.2 3.6 10.8 0 15-3.6-4.2-3.6-10.8 0-15z" fill="#0F7B5F"/><circle cx="32" cy="32" r="2.3" fill="#D4A63A"/></svg>`;
   },
-  url() { return (S.settings && S.settings.LOGO_URL) || ((BOOT.koperasi || {}).logo) || ''; },
+  /** Logo aktif: unggahan Admin (data URL dari server) → URL lama → '' (= logo khatam bawaan). */
+  url() { return ((BOOT.koperasi || {}).logo) || (S.settings && S.settings.LOGO_URL) || ''; },
+  /** Ganti logo di seluruh tampilan (setelah unggah/hapus) dan simpan ke cache data awal perangkat. */
+  set(u) {
+    BOOT.koperasi = Object.assign({}, BOOT.koperasi || {}, { logo: u || '' });
+    try { Store.lset('sk_boot', JSON.parse(JSON.stringify(BOOT))); } catch (e) { /* abaikan */ }
+    Logo.favicon();
+    if (S.token) Nav.build();
+  },
+  _fav: null,
+  /** Ikon tab browser ikut memakai logo koperasi. */
+  favicon() {
+    const l = document.querySelector('link[rel="icon"]'); if (!l) return;
+    if (Logo._fav === null) Logo._fav = l.getAttribute('href');
+    const u = Logo.url();
+    l.setAttribute('type', u ? (u.match(/^data:([^;,]+)/) || [])[1] || 'image/png' : 'image/svg+xml');
+    l.setAttribute('href', u || Logo._fav);
+  },
   html(size) { const u = Logo.url(); return u ? `<img src="${esc(u)}" alt="Logo koperasi" style="width:${size}px;height:${size}px;object-fit:contain">` : Logo.svg(size); },
   _png: null,
   /** Logo bawaan sebagai PNG data URL (untuk dokumen PDF). */
@@ -829,7 +846,7 @@ const Nav = {
         if (m[4] && !m[4].includes(S.role)) return '';
         return `<li><button class="sb-link" data-nav="${m[0]}" ${on('Nav.go', m[0])} title="${esc(m[1])}"><i class="bi ${m[2]}"></i><span>${esc(m[1])}</span>${m[3] ? `<span class="sb-badge" data-badge="${m[3]}"></span><span class="sb-dot" data-dot="${m[3]}" hidden></span>` : ''}</button></li>`;
       }).join('');
-      document.getElementById('sbFoot').innerHTML = `<button class="sb-link sb-collapse" onclick="UI.collapse()" title="Lipat menu"><i class="bi bi-layout-sidebar-inset"></i><span>Lipat menu</span></button>SIMPEL-KOP v${esc(BOOT.version || '1.4.5')} • ${esc(S.settings.SEKOLAH || 'SMK Islam PB. Soedirman 2')}`;
+      document.getElementById('sbFoot').innerHTML = `<button class="sb-link sb-collapse" onclick="UI.collapse()" title="Lipat menu"><i class="bi bi-layout-sidebar-inset"></i><span>Lipat menu</span></button>SIMPEL-KOP v${esc(BOOT.version || '1.4.6')} • ${esc(S.settings.SEKOLAH || 'SMK Islam PB. Soedirman 2')}`;
     }
     const bottom = staff ? MENU.bottomStaff : MENU.bottomMember;
     document.getElementById('bottomNav').innerHTML = bottom.map(b => `<button class="bn-item" data-nav="${b[0]}" ${on('Nav.go', b[0])}><i class="bi ${b[2]}"></i><span>${esc(b[1])}</span>${b[0] === 'pinjaman' || b[0] === 'm-pinjaman' ? '<span class="bn-dot" data-dot="bn" hidden></span>' : ''}</button>`).join('');
@@ -1128,7 +1145,7 @@ const Verify = {
 // ════════════════════════════════════════════════════════
 const Boot = {
   loaded: false, promise: null, error: null,
-  apply(d) { Object.keys(BOOT).forEach(k => { delete BOOT[k]; }); Object.assign(BOOT, d || {}); Boot.loaded = true; },
+  apply(d) { Object.keys(BOOT).forEach(k => { delete BOOT[k]; }); Object.assign(BOOT, d || {}); Boot.loaded = true; try { Logo.favicon(); } catch (e) { /* abaikan */ } },
   /** Tampilkan salinan di perangkat seketika (bila ada), lalu ambil versi terbaru di latar. */
   start() {
     const cached = Store.lget('sk_boot', null);

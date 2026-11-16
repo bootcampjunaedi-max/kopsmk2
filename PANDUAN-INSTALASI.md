@@ -1,4 +1,4 @@
-# SIMPEL-KOP v1.4.5 — Panduan Instalasi (GAS REST API + GitHub Pages)
+# SIMPEL-KOP v1.4.6 — Panduan Instalasi (GAS REST API + GitHub Pages)
 
 Arsitektur baru:
 
@@ -22,11 +22,11 @@ Tidak ada lagi `Index.html`, `Stylesheet.html`, `JavaScript.html` di Apps Script
 
 Pilih **salah satu** jalur.
 
-### A0. Sudah memasang v1.4.0 – v1.4.4 (update ke v1.4.5 — hapus anggota, tenor 3–20 bln, bunga 10%/20% total, potong gaji otomatis tgl 25)
+### A0. Sudah memasang v1.4.0 – v1.4.5 (update ke v1.4.6 — hapus anggota, tenor 3–20 bln, bunga 10%/20%, potong gaji otomatis tgl 25, unggah logo)
 
 1. Ganti seluruh isi `Kode.gs` di editor Apps Script → **Manage deployments → ✏️ Edit → New version → Deploy**.
 2. Ganti berkas frontend di folder repo dengan isi ZIP baru (**jangan** timpa `js/config.js` Anda — atau isi ulang `GAS_URL`), lalu:
-   `git add .` → `git commit -m "v1.4.5"` → `git push`.
+   `git add .` → `git commit -m "v1.4.6"` → `git push`.
 3. Tenor 3–20 bulan, bunga 10% (uang) / 20% (barang), dan potong gaji tanggal 25 **langsung berlaku** setelah backend di-deploy — tidak perlu mengubah apa pun di Pengaturan. Baris lama `TENOR_UANG`, `TENOR_BARANG`, `BUNGA_UANG`, `BUNGA_BARANG`, `TGL_JATUH_TEMPO` di sheet Pengaturan tidak dipakai lagi dan boleh dihapus.
 
 ### A1. Sudah memakai SIMPEL-KOP v1.3.0 (data lama tetap dipakai)
@@ -55,10 +55,10 @@ Pilih **salah satu** jalur.
 Buka URL `/exec` di browser. Harus tampil JSON seperti:
 
 ```json
-{"success":true,"data":{"app":"SIMPEL-KOP","version":"1.4.5","ready":true,...},"message":"pong"}
+{"success":true,"data":{"app":"SIMPEL-KOP","version":"1.4.6","ready":true,...},"message":"pong"}
 ```
 
-Jika `"version"` bukan `1.4.5` atau yang tampil halaman aplikasi lama, berarti versi baru belum di-deploy (ulangi langkah Deploy → New version).
+Jika `"version"` bukan `1.4.6` atau yang tampil halaman aplikasi lama, berarti versi baru belum di-deploy (ulangi langkah Deploy → New version).
 
 > **Setiap kali `Kode.gs` diubah:** Manage deployments → ✏️ Edit → **New version** → Deploy. Jangan membuat *New deployment* — itu menghasilkan URL baru dan `js/config.js` harus diubah lagi.
 
@@ -119,7 +119,7 @@ Windows (PowerShell): `cd "$HOME\Downloads\simpel-kop"` lalu `dir`.
 ```bash
 git init
 git add .
-git commit -m "SIMPEL-KOP v1.4.5 frontend"
+git commit -m "SIMPEL-KOP v1.4.6 frontend"
 git branch -M main
 git remote add origin https://github.com/USERNAME/simpel-kop.git
 git push -u origin main
@@ -161,7 +161,7 @@ Jika tampilan masih lama: **Ctrl+Shift+R** atau buka jendela Incognito.
 
 Halaman masuk di GitHub Pages bisa dibuka siapa saja, jadi akun uji coba harus dimatikan:
 
-1. Masuk sebagai **admin** → **Pengaturan → Identitas & KOP** → isi penandatangan & email bendahara → **matikan "Tampilkan akun uji coba"**.
+1. Masuk sebagai **admin** → **Pengaturan → Identitas & KOP** → **unggah logo koperasi**, isi penandatangan & email bendahara → **matikan "Tampilkan akun uji coba"**.
 2. Jalankan fungsi **`kosongkanDataDemo`** dari editor Apps Script (hapus seluruh data demo termasuk stok & biaya; akun `admin` tetap). Bila hanya ingin mengosongkan anggota, cukup pakai tombol **Hapus Semua** di menu Data Anggota.
 3. **Ganti sandi `admin`** (menu akun → Ganti Kata Sandi), lalu buat akun Bendahara/Pengawas di **Pengaturan → Pengguna & Peran**.
 4. Isi **Pengaturan → Simpanan & Modal → Saldo kas awal** sesuai kas riil.
@@ -188,6 +188,17 @@ Bunga dihitung **sekali untuk seluruh akad** — tenor panjang atau pendek, tota
 - Hanya berlaku untuk **pengajuan baru**. Akad lama tetap dengan angka yang sudah disepakati; tampilannya otomatis disesuaikan (mis. akad lama 1%/bln × 10 bln tampil sebagai "10% total").
 - Kolom `Bunga_Persen` di sheet pinjaman: untuk akad baru berarti **persen total**. Angka rupiah yang mengikat tetap `Total_Bunga`.
 - **Pelunasan dipercepat:** bila *Diskon margin pada pelunasan dipercepat* aktif (bawaan), bunga cicilan yang belum jatuh tempo dibebaskan. Matikan sakelar itu bila anggota yang melunasi lebih cepat tetap harus membayar bunga penuh 10%/20%.
+
+## Logo koperasi (unggah di menu Identitas)
+
+**Pengaturan → Identitas & KOP → kartu Logo Koperasi** (khusus Admin):
+
+- **Unggah Logo** → pilih gambar PNG, JPG, WebP, atau SVG (maks. 5 MB). Gambar otomatis diperkecil di browser menjadi maks. 256 piksel (rasio tetap) sebelum dikirim, jadi hemat kuota dan cepat tampil.
+- Logo langsung berganti di halaman masuk, menu samping, bilah atas, **ikon tab browser**, dan **KOP semua dokumen PDF** (bukti setoran, kwitansi, surat perjanjian, kartu anggota).
+- File disimpan di folder aplikasi di Google Drive (`Logo Koperasi YYYY-MM-DD.png`); logo lama otomatis dipindah ke Sampah Drive. Logo dikirim ke aplikasi sebagai data gambar, jadi **tidak perlu mengatur izin berbagi Drive**.
+- **Gunakan logo bawaan** → kembali ke logo khatam bawaan aplikasi.
+- Tips: pakai PNG berlatar transparan agar rapi di mode terang maupun gelap.
+- Kolom lama *URL logo* sudah diganti fitur unggah ini.
 
 ## Pembayaran angsuran: dipotong gaji setiap tanggal 25
 
