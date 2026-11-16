@@ -688,7 +688,7 @@ const LoanForm = {
           <span class="err-msg"></span><div class="label mt-2">Pilihan nominal cepat:</div><div class="chips">${[1000000, 2500000, 5000000, 10000000].map(v => `<button type="button" class="chip-btn" onclick="LoanForm.add(${v})">+${fmtJt(v)}</button>`).join('')}<button type="button" class="chip-btn" onclick="LoanForm.add(0)">Reset</button></div></div>
         <div id="lfBarang" class="form-grid cols-2" hidden><div class="fg full"><label>Pilih barang dari katalog <span class="req">*</span></label><select class="inp" name="ID_Barang"><option value="">— pilih barang —</option>${brg.map(b => `<option value="${esc(b.ID_Barang)}" ${d.ID_Barang === b.ID_Barang ? 'selected' : ''} ${num(b.Stok) <= 0 ? 'disabled' : ''}>${esc(b.Nama)} — ${fmtRp(b.Harga_Jual)} (stok ${b.Stok})</option>`).join('')}</select><span class="err-msg"></span></div>
           <div class="fg"><label>Jumlah (qty)</label><input class="inp" type="number" name="Qty" min="1" value="${esc(d.Qty || 1)}"></div><div class="fg"><label>Spesifikasi</label><div class="hint" id="lfSpec" style="padding-top:12px">—</div></div></div>
-        <div class="fg"><label>Jangka waktu (tenor) <span class="req">*</span></label><select class="inp" name="Tenor" id="lfTenor"></select></div>
+        <div class="fg"><label>Jangka waktu (tenor) <span class="req">*</span></label><select class="inp" name="Tenor" id="lfTenor"></select><span class="hint" id="lfTenorHint"></span></div>
         <div class="fg"><label>Keperluan / tujuan pembiayaan</label><textarea class="inp" name="Keperluan" rows="2" maxlength="300" placeholder="mis. Biaya pendidikan & renovasi laptop dinas mengajar">${esc(d.Keperluan || '')}</textarea></div>
       </div>
       <div class="card-k mint"><div class="row-between mb-2"><div class="person"><span class="kpi-icon"><i class="bi bi-calculator"></i></span><div><b class="font-head">Simulasi Perhitungan Flat</b><div class="xs muted">Kalkulasi otomatis sistem</div></div></div><span id="lfRate"></span></div>
@@ -717,9 +717,14 @@ const LoanForm = {
     const f = r.f;
     document.getElementById('lfUang').hidden = r.jenis !== 'uang';
     document.getElementById('lfBarang').hidden = r.jenis !== 'barang';
-    const tsel = document.getElementById('lfTenor'), opts = Calc.tenors(r.jenis);
-    const prev = r.tenor || (Store.lget(LoanForm.key(), {}) || {}).Tenor || (opts.includes(10) ? 10 : opts[0]);
-    if (tsel.dataset.j !== r.jenis) { tsel.innerHTML = opts.map(t => `<option value="${t}" ${t === +prev ? 'selected' : ''}>${t} Bulan${t === 10 ? ' (rekomendasi kalender akademik)' : ''}</option>`).join(''); tsel.dataset.j = r.jenis; }
+    const tsel = document.getElementById('lfTenor'), opts = Calc.tenors(r.jenis), rg = Calc.tenorRange(r.jenis), sig = r.jenis + ':' + rg.min + '-' + rg.max;
+    let prev = +(r.tenor || (Store.lget(LoanForm.key(), {}) || {}).Tenor || 0);
+    if (!opts.includes(prev)) prev = opts.includes(10) ? 10 : opts[0];
+    if (tsel.dataset.j !== sig) {
+      tsel.innerHTML = opts.map(t => `<option value="${t}" ${t === prev ? 'selected' : ''}>${t} Bulan${t === 10 ? ' (rekomendasi kalender akademik)' : ''}</option>`).join('');
+      tsel.dataset.j = sig;
+      document.getElementById('lfTenorHint').textContent = 'Tenor yang diizinkan: ' + rg.min + ' sampai ' + rg.max + ' bulan.';
+    }
     const tenor = parseInt(tsel.value, 10) || opts[0];
     const h = Calc.pinjaman(r.pokok, r.persen, tenor);
     document.getElementById('lfRate').innerHTML = badge((r.jenis === 'uang' ? 'Bunga ' : 'Margin ') + r.persen + '% / bln', 'b-solid');
@@ -1515,17 +1520,31 @@ Pages.pengaturan = {
     if (type === 'pct') return `<div class="fg"><label>${label} <span class="req">*</span></label><div class="inp-group"><input class="inp money-inp" type="number" step="0.1" min="0" max="10" value="${esc(v)}" oninput="Pages.pengaturan.set('${k}',this.value)"><span class="addon">% / bln</span></div>${hint ? `<span class="hint">${hint}</span>` : ''}</div>`;
     return `<div class="fg ${extra || ''}"><label>${label}</label><input class="inp ${type === 'mono' ? 'mono' : ''}" type="${type === 'number' ? 'number' : 'text'}" value="${esc(v)}" oninput="Pages.pengaturan.set('${k}',this.value)">${hint ? `<span class="hint">${hint}</span>` : ''}</div>`;
   },
-  tenorBox(k) {
-    const cur = String(Pages.pengaturan.draft[k] || '').split(',').map(x => parseInt(x, 10));
-    return `<div class="chips">${[3, 6, 10, 12, 18, 24, 36].map(t => `<label class="chip-btn ${cur.includes(t) ? 'on' : ''}" style="display:inline-flex;align-items:center;gap:6px"><input type="checkbox" ${cur.includes(t) ? 'checked' : ''} style="accent-color:#fff" onchange="Pages.pengaturan.tenor('${k}',${t},this.checked);this.parentNode.classList.toggle('on',this.checked)">${t} bln${t === 10 ? ' ★' : ''}</label>`).join('')}</div>`;
+  /** Tenor yang diizinkan = rentang bulan minimal s.d. maksimal (j = 'UANG' | 'BARANG'). */
+  tenorBox(j) {
+    const d = Pages.pengaturan.draft, inp = (k, lbl) => `<div class="fg"><label for="set_${k}">${lbl} <span class="req">*</span></label><div class="inp-group"><input id="set_${k}" class="inp money-inp" type="number" min="1" max="60" step="1" inputmode="numeric" value="${esc(d[k] !== undefined ? d[k] : '')}" oninput="Pages.pengaturan.set('${k}',this.value);Pages.pengaturan.tenorPrev('${j}')"><span class="addon">bulan</span></div></div>`;
+    return `<div class="form-grid cols-2">${inp('TENOR_MIN_' + j, 'Tenor minimal')}${inp('TENOR_MAX_' + j, 'Tenor maksimal')}</div><div class="hint mt-1" id="tnPrev_${j}">${Pages.pengaturan.tenorText(j)}</div>`;
   },
-  tenor(k, t, onx) { let cur = String(Pages.pengaturan.draft[k] || '').split(',').map(x => parseInt(x, 10)).filter(x => x > 0); cur = onx ? Array.from(new Set(cur.concat([t]))) : cur.filter(x => x !== t); Pages.pengaturan.set(k, cur.sort((a, b) => a - b).join(',')); },
+  /** Cek rentang tenor pada draft; '' bila valid, selain itu pesan kesalahan. */
+  tenorErr(j) {
+    const d = Pages.pengaturan.draft, a = Number(d['TENOR_MIN_' + j]), b = Number(d['TENOR_MAX_' + j]);
+    if (String(d['TENOR_MIN_' + j]).trim() === '' || String(d['TENOR_MAX_' + j]).trim() === '' || !Number.isInteger(a) || !Number.isInteger(b) || a < 1 || b < 1 || a > 60 || b > 60) return 'Isi tenor dengan bilangan bulat 1–60 bulan.';
+    if (a > b) return 'Tenor minimal tidak boleh lebih besar dari tenor maksimal.';
+    return '';
+  },
+  tenorText(j) {
+    const e = Pages.pengaturan.tenorErr(j), d = Pages.pengaturan.draft;
+    if (e) return `<span class="text-danger"><i class="bi bi-exclamation-triangle"></i> ${e}</span>`;
+    const a = Number(d['TENOR_MIN_' + j]), b = Number(d['TENOR_MAX_' + j]);
+    return `<i class="bi bi-check-circle text-primary"></i> Pemohon dapat memilih <b>${b - a + 1} pilihan</b> tenor: <b>${a} sampai ${b} bulan</b>.`;
+  },
+  tenorPrev(j) { const el = document.getElementById('tnPrev_' + j); if (el) el.innerHTML = Pages.pengaturan.tenorText(j); },
   body() {
     const s = st('pengaturan'), F = Pages.pengaturan.fld, box = document.getElementById('setBody'); if (!box) return;
     if (s.tab === 'pembiayaan') box.innerHTML = `<div class="card-k mb-3"><div class="card-head"><div><h3><i class="bi bi-cash-coin"></i> 1. Pembiayaan Uang Kas (Qardh / Multiguna)</h3><p>Margin baku, plafon & tenor</p></div>${badge('PRD 4.2', 'b-gray')}</div>
-        <div class="form-grid cols-2">${F('BUNGA_UANG', 'Bunga koperasi / bulan', 'pct', 'Flat dari pokok awal')}${F('PLAFON_UANG', 'Plafon maksimal per pengajuan', 'money')}</div><div class="label mt-3 mb-2">Tenor yang diizinkan</div>${Pages.pengaturan.tenorBox('TENOR_UANG')}</div>
+        <div class="form-grid cols-2">${F('BUNGA_UANG', 'Bunga koperasi / bulan', 'pct', 'Flat dari pokok awal')}${F('PLAFON_UANG', 'Plafon maksimal per pengajuan', 'money')}</div><div class="label mt-3 mb-2">Tenor yang diizinkan</div>${Pages.pengaturan.tenorBox('UANG')}</div>
       <div class="card-k mb-3"><div class="card-head"><div><h3><i class="bi bi-box-seam"></i> 2. Pembiayaan Pengadaan Barang (Murabahah)</h3><p>Margin toko & tenor</p></div>${badge("Murabahah Ri'ayah", 'b-gold')}</div>
-        <div class="form-grid cols-2">${F('BUNGA_BARANG', 'Margin toko / bulan', 'pct', 'Flat dari harga barang')}${F('TGL_JATUH_TEMPO', 'Tanggal jatuh tempo bulanan', 'number', 'Selaras tanggal payroll (1–28)')}</div><div class="label mt-3 mb-2">Tenor yang diizinkan</div>${Pages.pengaturan.tenorBox('TENOR_BARANG')}
+        <div class="form-grid cols-2">${F('BUNGA_BARANG', 'Margin toko / bulan', 'pct', 'Flat dari harga barang')}${F('TGL_JATUH_TEMPO', 'Tanggal jatuh tempo bulanan', 'number', 'Selaras tanggal payroll (1–28)')}</div><div class="label mt-3 mb-2">Tenor yang diizinkan</div>${Pages.pengaturan.tenorBox('BARANG')}
         ${F('SATU_PINJAMAN_AKTIF', 'Batasi satu pinjaman sejenis yang aktif', 'switch', 'Anggota tidak boleh mengajukan jenis yang sama selama masih berjalan')}${F('DISKON_PELUNASAN', 'Diskon margin pada pelunasan dipercepat', 'switch', 'Bunga cicilan yang belum jatuh tempo dibebaskan (ibra\')')}</div>
       <div class="card-k"><div class="card-head"><div><h3><i class="bi bi-hourglass"></i> Aturan Sanksi Ta'zir (Infaq Keterlambatan)</h3><p>Nonaktif secara bawaan sesuai prinsip syariah</p></div></div>
         ${F('DENDA_AKTIF', 'Aktifkan denda keterlambatan', 'switch', 'Bila aktif, denda dihitung per minggu setelah masa tenggang')}<div class="form-grid cols-2 mt-3">${F('DENDA_NOMINAL', 'Nominal denda per minggu', 'money')}${F('DENDA_TENGGANG', 'Masa tenggang (hari)', 'number')}</div></div>`;
@@ -1558,11 +1577,13 @@ Pages.pengaturan = {
   side() {
     const box = document.getElementById('setSide'); if (!box) return;
     const s = st('pengaturan'), d = Pages.pengaturan.draft;
+    const rg = Calc.tenorRange(s.simJenis, d);
+    s.simTenor = Math.min(rg.max, Math.max(rg.min, num(s.simTenor) || 10));
     const persen = num(s.simJenis === 'uang' ? d.BUNGA_UANG : d.BUNGA_BARANG), h = Calc.pinjaman(s.simPokok, persen, s.simTenor);
     box.innerHTML = `<div class="card-k"><div class="card-head"><h3><i class="bi bi-calculator"></i> Simulator Hitung Akad</h3>${badge('Live', 'b-green')}</div>
       <div class="seg mb-3" style="width:100%;display:grid;grid-template-columns:1fr 1fr"><button class="${s.simJenis === 'uang' ? 'on' : ''}" onclick="st('pengaturan').simJenis='uang';Pages.pengaturan.side()">Uang (${num(d.BUNGA_UANG)}%)</button><button class="${s.simJenis === 'barang' ? 'on' : ''}" onclick="st('pengaturan').simJenis='barang';Pages.pengaturan.side()">Barang (${num(d.BUNGA_BARANG)}%)</button></div>
       <div class="fg"><label>Nominal pengajuan</label><div class="inp-group"><span class="addon rp">Rp</span><input class="inp money-inp" data-money value="${fmtNum(s.simPokok)}" onchange="st('pengaturan').simPokok=parseRp(this.value);Pages.pengaturan.side()"></div></div>
-      <div class="fg mt-2"><label><span>Jangka waktu</span><b class="text-primary">${s.simTenor} bulan</b></label><input type="range" min="1" max="36" value="${s.simTenor}" style="accent-color:var(--primary)" oninput="st('pengaturan').simTenor=+this.value;Pages.pengaturan.side()" aria-label="Tenor"></div>
+      <div class="fg mt-2"><label><span>Jangka waktu</span><b class="text-primary">${s.simTenor} bulan</b></label><input type="range" min="${rg.min}" max="${rg.max}" value="${s.simTenor}" style="accent-color:var(--primary)" oninput="st('pengaturan').simTenor=+this.value;Pages.pengaturan.side()" aria-label="Tenor"><div class="row-between xs muted"><span>${rg.min} bln</span><span>${rg.max} bln</span></div></div>
       <div class="hero khatam-bg mt-3" style="padding:16px"><span class="khatam-star"></span><span class="eyebrow">Total angsuran bulanan</span><div class="hero-amount">${rp(h.angsuran)}<span style="font-size:13px;font-weight:500"> /bln</span></div><div class="hero-split"><div><span>Pokok/bln</span><b>${fmtJt(h.pokokBulan)}</b></div><div><span>Margin/bln</span><b>${fmtJt(h.bungaBulan)}</b></div><div><span>Total</span><b>${fmtJt(h.total)}</b></div></div></div>
       <div class="xs muted mt-2"><b>Formula (PRD 4.2):</b> Total bunga = Pokok × % × Tenor; Angsuran = (Pokok + Total bunga) ÷ Tenor. Tidak ada bunga berbunga.</div></div>
       <div class="card-k"><div class="card-head"><h3><i class="bi bi-pen"></i> KOP & Penandatangan</h3></div><div class="small"><b>${esc(d.NAMA_KOPERASI)}</b><div class="muted">${esc(d.SEKOLAH)} • Badan Hukum ${esc(d.BADAN_HUKUM)}</div></div><div class="list mt-2">${[['Ketua', d.KETUA], ['Bendahara', d.BENDAHARA], ['Pengawas / DPS', d.PENGAWAS]].map((x, i) => `<div class="list-item"><span class="li-icon">${i + 1}</span><div class="li-body"><b>${esc(x[1])}</b><span>${x[0]}</span></div><i class="bi bi-patch-check text-primary"></i></div>`).join('')}</div></div>`;
@@ -1573,7 +1594,10 @@ Pages.pengaturan = {
     if (!Object.keys(changes).length) return;
     const bad = Object.keys(changes).find(k => k.startsWith('FMT_') && !/\{N+\}/.test(changes[k]));
     if (bad) return toast('Format ' + bad + ' wajib memuat penghitung {NNN}.', 'warning');
-    if ((changes.TENOR_UANG !== undefined && !changes.TENOR_UANG) || (changes.TENOR_BARANG !== undefined && !changes.TENOR_BARANG)) return toast('Pilih minimal satu tenor.', 'warning');
+    for (const j of ['UANG', 'BARANG']) {
+      const e = Pages.pengaturan.tenorErr(j);
+      if (e && (changes['TENOR_MIN_' + j] !== undefined || changes['TENOR_MAX_' + j] !== undefined)) return toast(e + ' (pinjaman ' + j.toLowerCase() + ')', 'warning', 'Tenor belum valid');
+    }
     const old = Object.assign({}, S.settings);
     S.settings = Object.assign({}, S.settings, d); Pages.pengaturan.draft = null;
     Store.saveData(); Router.render(); Nav.build();
@@ -1812,7 +1836,7 @@ Pages.profil = {
         ${Pages.profil.row('bi-headset', 'Bantuan & Hubungi Bendahara', 'Konsultasi pembiayaan & data anggota', 'Pages.mBeranda.setor()')}
       </div></div>
       <button class="btn btn-danger-soft btn-lg btn-block" onclick="Auth.logout()"><i class="bi bi-box-arrow-right"></i> Keluar dari Akun SIMPEL-KOP</button>
-      <div class="text-center xs muted">SIMPEL-KOP v${esc(BOOT.version || '1.4.1')} • Berlandaskan Prinsip Syariah<br>${esc(S.settings.NAMA_KOPERASI || '')}</div></div></div>`;
+      <div class="text-center xs muted">SIMPEL-KOP v${esc(BOOT.version || '1.4.2')} • Berlandaskan Prinsip Syariah<br>${esc(S.settings.NAMA_KOPERASI || '')}</div></div></div>`;
   },
   gantiSandi(wajib) {
     Modal.open({ title: 'Ganti Kata Sandi', icon: 'bi-key', sub: wajib ? 'Demi keamanan, ganti sandi sementara Anda sekarang.' : 'Gunakan minimal 8 karakter kombinasi huruf & angka',

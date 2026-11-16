@@ -1,4 +1,4 @@
-# SIMPEL-KOP v1.4.1 — Panduan Instalasi (GAS REST API + GitHub Pages)
+# SIMPEL-KOP v1.4.2 — Panduan Instalasi (GAS REST API + GitHub Pages)
 
 Arsitektur baru:
 
@@ -22,11 +22,12 @@ Tidak ada lagi `Index.html`, `Stylesheet.html`, `JavaScript.html` di Apps Script
 
 Pilih **salah satu** jalur.
 
-### A0. Sudah memasang v1.4.0 (update ke v1.4.1 — fitur hapus anggota)
+### A0. Sudah memasang v1.4.0 / v1.4.1 (update ke v1.4.2 — hapus anggota & tenor 3–20 bulan)
 
 1. Ganti seluruh isi `Kode.gs` di editor Apps Script → **Manage deployments → ✏️ Edit → New version → Deploy**.
 2. Ganti berkas frontend di folder repo dengan isi ZIP baru (**jangan** timpa `js/config.js` Anda — atau isi ulang `GAS_URL`), lalu:
-   `git add .` → `git commit -m "v1.4.1 hapus anggota"` → `git push`.
+   `git add .` → `git commit -m "v1.4.2"` → `git push`.
+3. Tenor 3–20 bulan **langsung berlaku** setelah backend di-deploy — tidak perlu mengubah apa pun di Pengaturan. (Baris lama `TENOR_UANG` / `TENOR_BARANG` di sheet Pengaturan tidak dipakai lagi dan boleh dihapus.)
 
 ### A1. Sudah memakai SIMPEL-KOP v1.3.0 (data lama tetap dipakai)
 
@@ -54,10 +55,10 @@ Pilih **salah satu** jalur.
 Buka URL `/exec` di browser. Harus tampil JSON seperti:
 
 ```json
-{"success":true,"data":{"app":"SIMPEL-KOP","version":"1.4.1","ready":true,...},"message":"pong"}
+{"success":true,"data":{"app":"SIMPEL-KOP","version":"1.4.2","ready":true,...},"message":"pong"}
 ```
 
-Jika `"version"` bukan `1.4.1` atau yang tampil halaman aplikasi lama, berarti versi baru belum di-deploy (ulangi langkah Deploy → New version).
+Jika `"version"` bukan `1.4.2` atau yang tampil halaman aplikasi lama, berarti versi baru belum di-deploy (ulangi langkah Deploy → New version).
 
 > **Setiap kali `Kode.gs` diubah:** Manage deployments → ✏️ Edit → **New version** → Deploy. Jangan membuat *New deployment* — itu menghasilkan URL baru dan `js/config.js` harus diubah lagi.
 
@@ -118,7 +119,7 @@ Windows (PowerShell): `cd "$HOME\Downloads\simpel-kop"` lalu `dir`.
 ```bash
 git init
 git add .
-git commit -m "SIMPEL-KOP v1.4.1 frontend"
+git commit -m "SIMPEL-KOP v1.4.2 frontend"
 git branch -M main
 git remote add origin https://github.com/USERNAME/simpel-kop.git
 git push -u origin main
@@ -166,6 +167,14 @@ Halaman masuk di GitHub Pages bisa dibuka siapa saja, jadi akun uji coba harus d
 4. Isi **Pengaturan → Simpanan & Modal → Saldo kas awal** sesuai kas riil.
 
 Alamat `GAS_URL` di repository publik tidak berbahaya: setiap aksi data membutuhkan token sesi, login dibatasi 5 kali gagal per 10 menit, dan hak akses dicek di server.
+
+## Tenor pinjaman (3–20 bulan)
+
+Tenor kini berupa **rentang**, bukan daftar pilihan tetap. Bawaan untuk pinjaman uang dan barang: **minimal 3, maksimal 20 bulan** — pemohon bisa memilih setiap bulan di antaranya (3, 4, 5 … 20; total 18 pilihan, bawaan terpilih 10 bulan).
+
+- Ubah di **Pengaturan → Margin & Pembiayaan → Tenor yang diizinkan** (kolom *Tenor minimal* dan *Tenor maksimal*, terpisah untuk uang dan barang), lalu **Simpan Semua Perubahan**.
+- Server menolak tenor di luar rentang, pecahan bulan, atau minimal yang lebih besar dari maksimal — aturan ini tidak bisa dilewati dari browser.
+- Perubahan hanya berlaku untuk **pengajuan baru**; akad yang sudah berjalan tidak berubah.
 
 ## Menghapus data anggota (khusus Admin)
 

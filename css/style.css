@@ -795,7 +795,7 @@ body.hide-fab .fab { display: none !important; }
 }
 
 
-/* ── Pilih & hapus anggota (v1.4.1) ── */
+/* ── Pilih & hapus anggota (v1.4.1+) ── */
 .bulk-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 10px 8px 14px; border-radius: var(--r-lg, 14px);
   background: var(--danger-soft); color: var(--danger-ink); border: 1px solid color-mix(in srgb, var(--danger) 25%, transparent); }
 .bulk-bar[hidden] { display: none; }

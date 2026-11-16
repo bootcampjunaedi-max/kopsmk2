@@ -1,6 +1,6 @@
 /**
  * ============================================================
- * SIMPEL-KOP — Frontend inti (js/core.js) • v1.4.1 GitHub Pages + GAS REST API
+ * SIMPEL-KOP — Frontend inti (js/core.js) • v1.4.2 GitHub Pages + GAS REST API
  * SPA murni + Instant UX:
  *  1. Semua halaman ada di DOM; navigasi = tampil/sembunyi section (0 ms, tanpa panggilan server)
  *  2. Optimistic UI: state lokal berubah seketika, sinkron ke server di latar (antrean + rollback)
@@ -418,7 +418,17 @@ const Calc = {
   saldo(id, jenis) {
     return S.db.simpanan.reduce((s, x) => (x.ID_Anggota === id && x.Jenis === jenis && x.Status !== 'batal') ? s + (x.Tipe === 'tarik' ? -1 : 1) * num(x.Jumlah) : s, 0);
   },
-  tenors(jenis) { return String(jenis === 'barang' ? S.settings.TENOR_BARANG : S.settings.TENOR_UANG || '').split(',').map(x => parseInt(x, 10)).filter(x => x > 0); },
+  /** Rentang tenor yang diizinkan (Pengaturan → TENOR_MIN_/TENOR_MAX_), bawaan 3–20 bulan. */
+  tenorRange(jenis, src) {
+    const s = src || S.settings || {}, j = jenis === 'barang' ? 'BARANG' : 'UANG';
+    let min = parseInt(s['TENOR_MIN_' + j], 10), max = parseInt(s['TENOR_MAX_' + j], 10);
+    if (!(min >= 1)) min = 3;
+    if (!(max >= 1)) max = 20;
+    if (min > max) { const x = min; min = max; max = x; }
+    return { min: Math.min(min, 60), max: Math.min(max, 60) };
+  },
+  /** Semua pilihan tenor: setiap bulan dari minimal s.d. maksimal. */
+  tenors(jenis, src) { const r = Calc.tenorRange(jenis, src), out = []; for (let t = r.min; t <= r.max; t++) out.push(t); return out; },
   kolek(days) {
     if (days <= 0) return { label: 'Lancar', kol: 'Kol-1', cls: 'b-success' };
     if (days <= 7) return { label: 'H+' + days + ' (Dalam Perhatian)', kol: 'Kol-2', cls: 'b-amber' };
@@ -801,7 +811,7 @@ const Nav = {
         if (m[4] && !m[4].includes(S.role)) return '';
         return `<li><button class="sb-link" data-nav="${m[0]}" ${on('Nav.go', m[0])} title="${esc(m[1])}"><i class="bi ${m[2]}"></i><span>${esc(m[1])}</span>${m[3] ? `<span class="sb-badge" data-badge="${m[3]}"></span><span class="sb-dot" data-dot="${m[3]}" hidden></span>` : ''}</button></li>`;
       }).join('');
-      document.getElementById('sbFoot').innerHTML = `<button class="sb-link sb-collapse" onclick="UI.collapse()" title="Lipat menu"><i class="bi bi-layout-sidebar-inset"></i><span>Lipat menu</span></button>SIMPEL-KOP v${esc(BOOT.version || '1.4.1')} • ${esc(S.settings.SEKOLAH || 'SMK Islam PB. Soedirman 2')}`;
+      document.getElementById('sbFoot').innerHTML = `<button class="sb-link sb-collapse" onclick="UI.collapse()" title="Lipat menu"><i class="bi bi-layout-sidebar-inset"></i><span>Lipat menu</span></button>SIMPEL-KOP v${esc(BOOT.version || '1.4.2')} • ${esc(S.settings.SEKOLAH || 'SMK Islam PB. Soedirman 2')}`;
     }
     const bottom = staff ? MENU.bottomStaff : MENU.bottomMember;
     document.getElementById('bottomNav').innerHTML = bottom.map(b => `<button class="bn-item" data-nav="${b[0]}" ${on('Nav.go', b[0])}><i class="bi ${b[2]}"></i><span>${esc(b[1])}</span>${b[0] === 'pinjaman' || b[0] === 'm-pinjaman' ? '<span class="bn-dot" data-dot="bn" hidden></span>' : ''}</button>`).join('');
