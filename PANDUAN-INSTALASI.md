@@ -1,4 +1,4 @@
-# SIMPEL-KOP v1.4.8 — Panduan Instalasi (GAS REST API + GitHub Pages)
+# SIMPEL-KOP v1.4.9 — Panduan Instalasi (GAS REST API + GitHub Pages)
 
 Arsitektur baru:
 
@@ -21,6 +21,12 @@ Tidak ada lagi `Index.html`, `Stylesheet.html`, `JavaScript.html` di Apps Script
 ## TAHAP A — Backend (Google Apps Script)
 
 Pilih **salah satu** jalur.
+
+### A000. Update ke v1.4.9 — rumus bunga per bulan
+
+1. Ganti seluruh isi `Kode.gs` → **Manage deployments → ✏️ Edit → New version → Deploy**; ganti berkas frontend (kecuali `js/config.js`) lalu push.
+2. Rumus baru langsung berlaku untuk **pengajuan baru**: uang = (pokok × 1%) × lama angsuran, barang = (harga barang × 2%) × lama angsuran. Persentase bisa diubah di **Pengaturan → Pembiayaan** (*Bunga pinjaman uang per bulan* / *Margin pinjaman barang per bulan*).
+3. Baris lama `BUNGA_TOTAL_UANG` & `BUNGA_TOTAL_BARANG` di sheet Pengaturan tidak dipakai lagi dan boleh dihapus. Pinjaman yang sudah ada **tidak berubah** nominalnya.
 
 ### A00. Sudah memasang v1.4.7 (update ke v1.4.8 — input data pinjaman lama mulai 1 Januari 2025)
 
@@ -180,26 +186,26 @@ Halaman masuk di GitHub Pages bisa dibuka siapa saja, jadi akun uji coba harus d
 
 Alamat `GAS_URL` di repository publik tidak berbahaya: setiap aksi data membutuhkan token sesi, login dibatasi 5 kali gagal per 10 menit, dan hak akses dicek di server.
 
-## Bunga & margin pinjaman (total, flat tiap bulan)
+## Bunga & margin pinjaman (per bulan × lama angsuran, flat)
 
-| Jenis | Bunga/margin | Contoh |
+| Jenis | Rumus | Contoh 10 bulan |
 |---|---|---|
-| Pinjaman uang | **10% dari besar pinjaman** | Rp 5.000.000 → bunga Rp 500.000, total Rp 5.500.000 |
-| Pinjaman barang | **20% dari harga pembelian barang** | Barang Rp 8.000.000 → margin Rp 1.600.000, total Rp 9.600.000 |
+| Pinjaman uang | **(pokok pinjaman × 1%) × lama angsuran** | Rp 5.000.000 × 1% × 10 = bunga Rp 500.000 → angsuran Rp 550.000/bln |
+| Pinjaman barang | **(harga barang × 2%) × lama angsuran** | Rp 8.000.000 × 2% × 10 = margin Rp 1.600.000 → angsuran Rp 960.000/bln |
 
-Bunga dihitung **sekali untuk seluruh akad** — tenor panjang atau pendek, total bunganya sama. Angsuran = (pokok + bunga) ÷ tenor, **sama besar setiap bulan**:
+Angsuran = (pokok + total bunga) ÷ lama angsuran, **sama besar setiap bulan**. Makin lama tenornya, makin besar total bunganya:
 
 | Pinjaman uang Rp 5.000.000 | 3 bln | 5 bln | 10 bln | 20 bln |
 |---|---|---|---|---|
-| Total bunga | Rp 500.000 | Rp 500.000 | Rp 500.000 | Rp 500.000 |
-| Angsuran / bulan | Rp 1.833.333* | Rp 1.100.000 | Rp 550.000 | Rp 275.000 |
+| Total bunga | Rp 150.000 | Rp 250.000 | Rp 500.000 | Rp 1.000.000 |
+| Angsuran / bulan | Rp 1.716.667* | Rp 1.050.000 | Rp 550.000 | Rp 300.000 |
 
-\*Selisih pembulatan masuk ke cicilan terakhir, sehingga jumlah seluruh cicilan tepat Rp 5.500.000.
+\*Selisih pembulatan masuk ke cicilan terakhir.
 
-- Ubah persentasenya di **Pengaturan → Margin & Pembiayaan** (*Bunga koperasi (total)* dan *Margin toko (total)*, 0–100%).
-- Hanya berlaku untuk **pengajuan baru**. Akad lama tetap dengan angka yang sudah disepakati; tampilannya otomatis disesuaikan (mis. akad lama 1%/bln × 10 bln tampil sebagai "10% total").
-- Kolom `Bunga_Persen` di sheet pinjaman: untuk akad baru berarti **persen total**. Angka rupiah yang mengikat tetap `Total_Bunga`.
-- **Pelunasan dipercepat:** bila *Diskon margin pada pelunasan dipercepat* aktif (bawaan), bunga cicilan yang belum jatuh tempo dibebaskan. Matikan sakelar itu bila anggota yang melunasi lebih cepat tetap harus membayar bunga penuh 10%/20%.
+- Ubah persentasenya di **Pengaturan → Pembiayaan** (*Bunga pinjaman uang per bulan*, *Margin pinjaman barang per bulan*).
+- Hanya berlaku untuk **pengajuan baru**. Akad lama tetap dengan nominal yang sudah disepakati; persentasenya ditampilkan sebagai setara per bulan.
+- Kolom `Bunga_Persen` di sheet pinjaman: untuk akad baru berarti **persen per bulan**. Angka rupiah yang mengikat tetap `Total_Bunga`.
+- **Pelunasan dipercepat:** bila *Diskon margin pada pelunasan dipercepat* aktif (bawaan), bunga cicilan yang belum jatuh tempo dibebaskan. Matikan sakelar itu bila anggota yang melunasi lebih cepat tetap harus membayar bunga penuh.
 
 ## Logo koperasi (unggah di menu Identitas)
 

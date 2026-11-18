@@ -1,6 +1,6 @@
 /**
  * ============================================================
- * SIMPEL-KOP — Frontend inti (js/core.js) • v1.4.8 GitHub Pages + GAS REST API
+ * SIMPEL-KOP — Frontend inti (js/core.js) • v1.4.9 GitHub Pages + GAS REST API
  * SPA murni + Instant UX:
  *  1. Semua halaman ada di DOM; navigasi = tampil/sembunyi section (0 ms, tanpa panggilan server)
  *  2. Optimistic UI: state lokal berubah seketika, sinkron ke server di latar (antrean + rollback)
@@ -16,7 +16,7 @@
 // BAGIAN 1: STATE GLOBAL
 // ════════════════════════════════════════════════════════
 /** Versi frontend — harus sama dengan APP.VERSION di Kode.gs (dicek otomatis, Admin diberi peringatan bila berbeda). */
-const FE_VERSION = '1.4.8';
+const FE_VERSION = '1.4.9';
 const BOOT = {};   // data publik dari GET ?action=boot (diisi oleh Boot.load, dicache di perangkat)
 const TABLES = ['anggota', 'simpanan', 'pinjaman', 'angsuran', 'pembayaran', 'barang', 'mutasi', 'biaya', 'pengguna', 'arsip', 'log'];
 const KEYS = { anggota: 'ID_Anggota', simpanan: 'ID_Transaksi', pinjaman: 'ID_Pinjaman', angsuran: 'ID_Angsuran', pembayaran: 'No_Bukti',
@@ -359,12 +359,13 @@ document.addEventListener('input', e => { const g = e.target.closest && e.target
 // ════════════════════════════════════════════════════════
 const Calc = {
   /**
-   * Bunga/margin = persen × pokok, SEKALI untuk seluruh akad (tidak dikali tenor) — identik dengan server.
+   * Bunga/margin = (pokok × persen per bulan) × lama angsuran — identik dengan server.
    * Tenor panjang atau pendek → total bunga sama; angsuran = (pokok + bunga) ÷ tenor, flat tiap bulan.
    */
   pinjaman(pokok, persen, tenor) {
     pokok = num(pokok); tenor = num(tenor) || 1;
-    const totalBunga = Math.round(pokok * num(persen) / 100);
+    // Rumus v1.4.9: bunga = (pokok × persen per bulan) × lama angsuran — identik dengan server
+    const totalBunga = Math.round(pokok * num(persen) / 100 * tenor);
     const total = pokok + totalBunga;
     return { pokok, totalBunga, total, angsuran: Math.round(total / tenor), bungaBulan: Math.round(totalBunga / tenor), pokokBulan: Math.round(pokok / tenor) };
   },
@@ -428,16 +429,16 @@ const Calc = {
   saldo(id, jenis) {
     return S.db.simpanan.reduce((s, x) => (x.ID_Anggota === id && x.Jenis === jenis && x.Status !== 'batal') ? s + (x.Tipe === 'tarik' ? -1 : 1) * num(x.Jumlah) : s, 0);
   },
-  /** Persen bunga/margin total yang berlaku (Pengaturan BUNGA_TOTAL_*), bawaan uang 10% & barang 20%. */
+  /** Persen bunga/margin PER BULAN yang berlaku (Pengaturan BUNGA_BULAN_*), bawaan uang 1% & barang 2%. */
   rate(jenis, src) {
-    const s = src || S.settings || {}, k = jenis === 'barang' ? 'BUNGA_TOTAL_BARANG' : 'BUNGA_TOTAL_UANG';
-    return s[k] === undefined || s[k] === '' ? (jenis === 'barang' ? 20 : 10) : num(s[k]);
+    const s = src || S.settings || {}, k = jenis === 'barang' ? 'BUNGA_BULAN_BARANG' : 'BUNGA_BULAN_UANG';
+    return s[k] === undefined || s[k] === '' ? (jenis === 'barang' ? 2 : 1) : num(s[k]);
   },
-  /** Persen bunga total sebuah akad, dihitung dari Total_Bunga ÷ Pokok (benar untuk akad lama & baru). */
+  /** Persen bunga per bulan sebuah akad = Total_Bunga ÷ Pokok ÷ Tenor (benar untuk akad lama & baru). */
   loanPct(l) {
-    const p = num(l.Pokok), b = num(l.Total_Bunga);
+    const p = num(l.Pokok), b = num(l.Total_Bunga), t = num(l.Tenor) || 1;
     if (!p) return num(l.Bunga_Persen);
-    return Math.round(b / p * 10000) / 100;
+    return Math.round(b / p / t * 10000) / 100;
   },
   /** Rentang tenor yang diizinkan (Pengaturan → TENOR_MIN_/TENOR_MAX_), bawaan 3–20 bulan. */
   tenorRange(jenis, src) {
@@ -679,7 +680,7 @@ function loanBadge(l) {
   if (l.Status === 'berjalan' && D.tunggakan && D.tunggakan.find(t => t.loan.ID_Pinjaman === l.ID_Pinjaman)) return badge('Menunggak', 'b-red', 'bi-exclamation-triangle');
   const s = LOAN_STATUS[l.Status] || [cap(l.Status), 'b-gray']; return badge(s[0], s[1], s[2]);
 }
-const jenisBadge = l => l.Jenis === 'barang' ? badge('Barang ' + fmtPct(Calc.loanPct(l)) + '%', 'b-gold', 'bi-box-seam') : badge('Uang ' + fmtPct(Calc.loanPct(l)) + '% Flat', 'b-green', 'bi-cash-coin');
+const jenisBadge = l => l.Jenis === 'barang' ? badge('Barang ' + fmtPct(Calc.loanPct(l)) + '%/bln', 'b-gold', 'bi-box-seam') : badge('Uang ' + fmtPct(Calc.loanPct(l)) + '%/bln', 'b-green', 'bi-cash-coin');
 /** Tanggal potong gaji untuk angsuran pinjaman uang & barang (Pengaturan TGL_POTONG_GAJI), bawaan 25. */
 const tglPotong = () => num((S.settings || {}).TGL_POTONG_GAJI) || 25;
 /** Tanggal paling awal untuk data pinjaman (pengajuan/akad/pencairan) — bawaan 1 Januari 2025. */
@@ -862,7 +863,7 @@ const Nav = {
         if (m[4] && !m[4].includes(S.role)) return '';
         return `<li><button class="sb-link" data-nav="${m[0]}" ${on('Nav.go', m[0])} title="${esc(m[1])}"><i class="bi ${m[2]}"></i><span>${esc(m[1])}</span>${m[3] ? `<span class="sb-badge" data-badge="${m[3]}"></span><span class="sb-dot" data-dot="${m[3]}" hidden></span>` : ''}</button></li>`;
       }).join('');
-      document.getElementById('sbFoot').innerHTML = `<button class="sb-link sb-collapse" onclick="UI.collapse()" title="Lipat menu"><i class="bi bi-layout-sidebar-inset"></i><span>Lipat menu</span></button>SIMPEL-KOP v${esc(BOOT.version || '1.4.8')} • ${esc(S.settings.SEKOLAH || 'SMK Islam PB. Soedirman 2')}`;
+      document.getElementById('sbFoot').innerHTML = `<button class="sb-link sb-collapse" onclick="UI.collapse()" title="Lipat menu"><i class="bi bi-layout-sidebar-inset"></i><span>Lipat menu</span></button>SIMPEL-KOP v${esc(BOOT.version || '1.4.9')} • ${esc(S.settings.SEKOLAH || 'SMK Islam PB. Soedirman 2')}`;
     }
     const bottom = staff ? MENU.bottomStaff : MENU.bottomMember;
     document.getElementById('bottomNav').innerHTML = bottom.map(b => `<button class="bn-item" data-nav="${b[0]}" ${on('Nav.go', b[0])}><i class="bi ${b[2]}"></i><span>${esc(b[1])}</span>${b[0] === 'pinjaman' || b[0] === 'm-pinjaman' ? '<span class="bn-dot" data-dot="bn" hidden></span>' : ''}</button>`).join('');
