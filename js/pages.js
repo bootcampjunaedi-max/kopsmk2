@@ -469,10 +469,28 @@ Pages.anggotaDetail = {
 // ════════════════════════════════════════════════════════
 Pages.simpanan = {
   title: 'Simpanan & Mutasi Kas', roles: ['admin', 'bendahara', 'pengawas'],
+  /** Pratinjau & proses simpanan wajib otomatis (tiap tanggal potong gaji, mulai bulan bergabung). */
+  wajib() {
+    Modal.open({ title: 'Simpanan Wajib Otomatis', icon: 'bi-calendar2-check', size: 'lg', sub: 'Dicatat setiap tanggal ' + tglPotong() + ' (potong gaji), dihitung mulai bulan bergabung',
+      body: '<div id="swBody" class="text-center p-4"><span class="spinner"></span> Memeriksa simpanan wajib…</div>',
+      foot: '<button class="btn btn-outline" data-bs-dismiss="modal">Tutup</button><button class="btn btn-primary" id="btnSwProses" disabled><i class="bi bi-check2-circle"></i> <span>Proses Sekarang</span></button>' });
+    callApi('simpanan.wajib.cek').then(r => {
+      const box = document.getElementById('swBody'); if (!box) return;
+      if (!r.success) { box.innerHTML = `<div class="alert-k err"><i class="bi bi-x-octagon"></i><div>${esc(r.message)}</div></div>`; return; }
+      const d = r.data, btn = document.getElementById('btnSwProses');
+      const status = d.otomatis ? `<div class="info-box ok"><i class="bi bi-robot"></i><div><b>Otomatis AKTIF</b> — setiap tanggal ${d.tanggal} pukul 06.00 sistem mencatat simpanan wajib ${fmtRp(d.nominal)} untuk setiap anggota aktif (metode potong gaji). Bulan yang tertinggal sejak bergabung ikut dicatat, tidak sebelum ${fmtDate(d.mulai)}.</div></div>`
+        : `<div class="info-box"><i class="bi bi-pause-circle"></i><div><b>Otomatis NONAKTIF.</b> Aktifkan di Pengaturan → Simpanan, atau proses manual dengan tombol di bawah.</div></div>`;
+      const rows = d.items.length ? `<div class="table-wrap mt-3"><table class="tbl"><thead><tr><th>Anggota</th><th>Bulan</th><th class="num">Jumlah bulan</th><th class="num">Total</th></tr></thead><tbody>${d.items.map(x => `<tr><td><b>${esc(x.Nama)}</b><div class="cell-sub">${esc(x.ID_Anggota)}</div></td><td>${esc(x.dari === x.sampai ? x.dari : x.dari + ' s.d. ' + x.sampai)}</td><td class="num">${x.n}</td><td class="num fw-600">${fmtRp(x.total)}</td></tr>`).join('')}</tbody></table></div>`
+        : `<div class="mt-3">${empty('bi-check2-all', 'Semua simpanan wajib sudah tercatat', 'Tidak ada bulan yang tertinggal s.d. hari ini.')}</div>`;
+      box.className = '';
+      box.innerHTML = status + rows + `<div class="xs muted mt-2">Bulan yang sudah punya setoran wajib (manual/payroll) dan bulan sebelum tanggal saldo awal (impor/migrasi) dilewati, sehingga tidak dobel.</div>`;
+      if (d.n) { btn.disabled = false; btn.querySelector('span').textContent = 'Proses Sekarang (' + d.n + ' setoran, ' + fmtRp(d.total) + ')'; btn.onclick = () => { Modal.close(); commit({ action: 'simpanan.wajib', payload: {}, tables: ['simpanan'], label: 'Simpanan wajib otomatis', quiet: true, ok: res => toast(res.message, 'success', 'Simpanan wajib') }); toast('Mencatat ' + d.n + ' setoran simpanan wajib…', 'info'); }; }
+    }).catch(e => { const box = document.getElementById('swBody'); if (box) box.innerHTML = `<div class="alert-k err"><i class="bi bi-wifi-off"></i><div>${esc(e.message || e)}</div></div>`; });
+  },
   render(el) {
     const s = st('simpanan', { tab: 'mutasi', jenis: 'semua', tipe: 'semua', bulan: '', q: '' });
     el.innerHTML = pageHead({ crumbs: [['Dashboard', 'dashboard'], ['Simpanan & Mutasi Kas']], title: 'Simpanan & Mutasi Kas', desc: 'Setoran dan penarikan simpanan pokok, wajib, dan sukarela dengan bukti bernomor otomatis ber-QR.',
-      actions: `<button class="btn btn-outline" onclick="Pages.simpanan.excel()"><i class="bi bi-file-earmark-excel"></i> Ekspor Excel</button>${canWrite() ? '<button class="btn btn-primary" onclick="Pages.simpanan.kasir()"><i class="bi bi-plus-circle"></i> Transaksi Simpanan</button>' : ''}` }) + `
+      actions: `<button class="btn btn-outline" onclick="Pages.simpanan.excel()"><i class="bi bi-file-earmark-excel"></i> Ekspor Excel</button>${canWrite() ? '<button class="btn btn-outline" onclick="Pages.simpanan.wajib()"><i class="bi bi-calendar2-check"></i> Wajib Otomatis</button>' : ''}${canWrite() ? '<button class="btn btn-primary" onclick="Pages.simpanan.kasir()"><i class="bi bi-plus-circle"></i> Transaksi Simpanan</button>' : ''}` }) + `
       <div class="grid g-kpi mb-3" id="simpKpi"></div>
       <div class="grid g-main-side">
         <div class="card-k flush"><div class="p-3 stack" style="gap:12px">
@@ -1605,7 +1623,9 @@ Pages.pengaturan = {
       <div class="card-k"><div class="card-head"><div><h3><i class="bi bi-hourglass"></i> Aturan Sanksi Ta'zir (Infaq Keterlambatan)</h3><p>Nonaktif secara bawaan sesuai prinsip syariah</p></div></div>
         ${F('DENDA_AKTIF', 'Aktifkan denda keterlambatan', 'switch', 'Bila aktif, denda dihitung per minggu setelah masa tenggang')}<div class="form-grid cols-2 mt-3">${F('DENDA_NOMINAL', 'Nominal denda per minggu', 'money')}${F('DENDA_TENGGANG', 'Masa tenggang (hari)', 'number')}</div></div>`;
     else if (s.tab === 'simpanan') box.innerHTML = `<div class="card-k"><div class="card-head"><div><h3><i class="bi bi-piggy-bank"></i> Pengaturan Simpanan Pokok & Wajib</h3><p>Ketetapan iuran & setoran awal sesuai AD/ART</p></div>${badge('AD/ART Pasal 8', 'b-gray')}</div>
-      <div class="form-grid cols-2">${F('SIMPANAN_POKOK', 'Simpanan pokok (1× pendaftaran)', 'money', 'Terkunci oleh ketetapan Rapat Anggota Tahunan')}${F('SIMPANAN_WAJIB', 'Simpanan wajib per bulan', 'money', 'Diproses via potong payroll')}${F('MODAL_AWAL', 'Saldo kas awal / cadangan modal', 'money', 'Dasar perhitungan Kas & Ekuitas di Neraca')}</div></div>`;
+      <div class="form-grid cols-2">${F('SIMPANAN_POKOK', 'Simpanan pokok (1× pendaftaran)', 'money', 'Terkunci oleh ketetapan Rapat Anggota Tahunan')}${F('SIMPANAN_WAJIB', 'Simpanan wajib per bulan', 'money', 'Diproses via potong payroll')}${F('MODAL_AWAL', 'Saldo kas awal / cadangan modal', 'money', 'Dasar perhitungan Kas & Ekuitas di Neraca')}</div>
+      <div class="mt-3">${F('WAJIB_OTOMATIS', 'Simpanan wajib otomatis setiap tanggal ' + tglPotong(), 'switch', 'Setiap tanggal ' + tglPotong() + ' pukul 06.00, simpanan wajib dicatat (potong gaji) untuk setiap anggota aktif, dihitung mulai bulan bergabung. Bulan yang sudah ada setoran wajibnya dilewati.')}</div>
+      <div class="form-grid cols-2 mt-2">${F('WAJIB_OTOMATIS_MULAI', 'Catat otomatis tidak sebelum tanggal', 'date', 'Bulan sebelum tanggal ini tidak dicatat otomatis (untuk anggota lama yang saldonya sudah dimasukkan manual). Bawaan 1 Januari 2025.')}</div></div>`;
     else if (s.tab === 'nomor') { box.innerHTML = `<div class="card-k"><div class="card-head"><div><h3><i class="bi bi-hash"></i> Format Penomoran Dokumen</h3><p>Token: {YYYY} tahun, {YY}, {MM} bulan, {NNN} penghitung (jumlah N = digit)</p></div></div><div id="fmtList" class="stack"></div></div>`; Pages.pengaturan.fmtPreview(); }
     else if (s.tab === 'identitas') box.innerHTML = `<div class="card-k mb-3" id="logoCard"><div class="card-head"><div><h3><i class="bi bi-image"></i> Logo Koperasi</h3><p>Tampil di halaman masuk, menu aplikasi, ikon tab browser, dan KOP semua dokumen PDF</p></div><span id="logoBadge">${Logo.url() ? badge('Logo unggahan', 'b-green') : badge('Logo bawaan', 'b-gray')}</span></div>
         <div class="logo-up"><div class="logo-prev" id="logoPrev">${Logo.html(96)}</div><div class="logo-up-body">

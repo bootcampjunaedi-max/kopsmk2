@@ -1,6 +1,6 @@
 /**
  * ============================================================
- * SIMPEL-KOP — Frontend inti (js/core.js) • v1.4.9 GitHub Pages + GAS REST API
+ * SIMPEL-KOP — Frontend inti (js/core.js) • v1.5.0 GitHub Pages + GAS REST API
  * SPA murni + Instant UX:
  *  1. Semua halaman ada di DOM; navigasi = tampil/sembunyi section (0 ms, tanpa panggilan server)
  *  2. Optimistic UI: state lokal berubah seketika, sinkron ke server di latar (antrean + rollback)
@@ -16,7 +16,7 @@
 // BAGIAN 1: STATE GLOBAL
 // ════════════════════════════════════════════════════════
 /** Versi frontend — harus sama dengan APP.VERSION di Kode.gs (dicek otomatis, Admin diberi peringatan bila berbeda). */
-const FE_VERSION = '1.4.9';
+const FE_VERSION = '1.5.0';
 const BOOT = {};   // data publik dari GET ?action=boot (diisi oleh Boot.load, dicache di perangkat)
 const TABLES = ['anggota', 'simpanan', 'pinjaman', 'angsuran', 'pembayaran', 'barang', 'mutasi', 'biaya', 'pengguna', 'arsip', 'log'];
 const KEYS = { anggota: 'ID_Anggota', simpanan: 'ID_Transaksi', pinjaman: 'ID_Pinjaman', angsuran: 'ID_Angsuran', pembayaran: 'No_Bukti',
@@ -863,7 +863,7 @@ const Nav = {
         if (m[4] && !m[4].includes(S.role)) return '';
         return `<li><button class="sb-link" data-nav="${m[0]}" ${on('Nav.go', m[0])} title="${esc(m[1])}"><i class="bi ${m[2]}"></i><span>${esc(m[1])}</span>${m[3] ? `<span class="sb-badge" data-badge="${m[3]}"></span><span class="sb-dot" data-dot="${m[3]}" hidden></span>` : ''}</button></li>`;
       }).join('');
-      document.getElementById('sbFoot').innerHTML = `<button class="sb-link sb-collapse" onclick="UI.collapse()" title="Lipat menu"><i class="bi bi-layout-sidebar-inset"></i><span>Lipat menu</span></button>SIMPEL-KOP v${esc(BOOT.version || '1.4.9')} • ${esc(S.settings.SEKOLAH || 'SMK Islam PB. Soedirman 2')}`;
+      document.getElementById('sbFoot').innerHTML = `<button class="sb-link sb-collapse" onclick="UI.collapse()" title="Lipat menu"><i class="bi bi-layout-sidebar-inset"></i><span>Lipat menu</span></button>SIMPEL-KOP v${esc(BOOT.version || '1.5.0')} • ${esc(S.settings.SEKOLAH || 'SMK Islam PB. Soedirman 2')}`;
     }
     const bottom = staff ? MENU.bottomStaff : MENU.bottomMember;
     document.getElementById('bottomNav').innerHTML = bottom.map(b => `<button class="bn-item" data-nav="${b[0]}" ${on('Nav.go', b[0])}><i class="bi ${b[2]}"></i><span>${esc(b[1])}</span>${b[0] === 'pinjaman' || b[0] === 'm-pinjaman' ? '<span class="bn-dot" data-dot="bn" hidden></span>' : ''}</button>`).join('');

@@ -14,7 +14,7 @@
  *           Isi hanya jika memakai domain sendiri.
  * ============================================================
  */
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbzukl7fMkopTxnryqgYuGU44_JKgzmZDdm5nZlA1WIrykX_gYcSZv-qwK4KTA-Kt2EY/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwZe8oERqTpRx8EReMNdWYCt1bHd6_JHy1fFjRftUSbian5shPcEF0zII49yh46PM7c/exec';
 
 const APP_URL = '';
 

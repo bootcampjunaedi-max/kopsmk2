@@ -1,4 +1,4 @@
-# SIMPEL-KOP v1.4.9 — Panduan Instalasi (GAS REST API + GitHub Pages)
+# SIMPEL-KOP v1.5.0 — Panduan Instalasi (GAS REST API + GitHub Pages)
 
 Arsitektur baru:
 
@@ -21,6 +21,13 @@ Tidak ada lagi `Index.html`, `Stylesheet.html`, `JavaScript.html` di Apps Script
 ## TAHAP A — Backend (Google Apps Script)
 
 Pilih **salah satu** jalur.
+
+### A0000. Update ke v1.5.0 — simpanan wajib otomatis tanggal 25
+
+1. Ganti `Kode.gs` → **Manage deployments → ✏️ Edit → New version → Deploy**; ganti berkas frontend (kecuali `js/config.js`) lalu push. Pastikan trigger harian sudah terpasang (`setupTriggers()` / Pengaturan → Sistem).
+2. Setiap tanggal potong gaji (bawaan **25**) pukul 06.00, sistem mencatat simpanan wajib (nominal *Simpanan wajib per bulan*, metode potong gaji) untuk **setiap anggota aktif**, dihitung mulai **bulan bergabung**: tanggal 25 pertama pada/sesudah tanggal masuk anggota. Contoh: masuk 10 Maret → mulai 25 Maret; masuk 26 Maret → mulai 25 April.
+3. Bulan yang tertinggal sejak bergabung ikut dicatat (tanggal 25 bulan itu). Supaya tidak dobel, yang **dilewati**: bulan yang sudah punya setoran wajib (manual/payroll), bulan sebelum tanggal "saldo awal" wajib (impor/migrasi), dan bulan sebelum *Catat otomatis tidak sebelum tanggal* (bawaan 1 Januari 2025).
+4. Cek dulu di **Simpanan → Wajib Otomatis** (pratinjau per anggota) — tombol *Proses Sekarang* mencatatnya saat itu juga. Fitur bisa dimatikan di **Pengaturan → Simpanan**.
 
 ### A000. Update ke v1.4.9 — rumus bunga per bulan
 
