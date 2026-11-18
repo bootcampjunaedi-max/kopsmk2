@@ -683,6 +683,7 @@ const LoanForm = {
           <label class="choice"><input type="radio" name="Jenis" value="barang" ${jenis === 'barang' ? 'checked' : ''}><span class="c-body"><span class="c-icon"><i class="bi bi-box-seam"></i></span><span style="flex:1"><b>Pinjaman Barang ${badge('Murabahah', 'b-gray')}</b><small class="text-primary fw-600">Margin ${fmtPct(Calc.rate('barang'))}% dari harga barang • flat tiap bulan</small><small>Katalog elektronik, seragam & kebutuhan sekolah</small></span><span class="c-check"><i class="bi bi-check"></i></span></span></label>
         </div></div>
       <div class="card-k form-grid">
+        ${member ? '' : `<div class="fg"><label>Tanggal pengajuan <span class="req">*</span></label><input class="inp" type="date" name="Tgl_Pengajuan" value="${esc(d.Tgl_Pengajuan && d.Tgl_Pengajuan >= tglMulaiPinjaman() && d.Tgl_Pengajuan <= T() ? d.Tgl_Pengajuan : T())}" min="${tglMulaiPinjaman()}" max="${T()}"><span class="hint">Untuk memasukkan <b>data pinjaman lama</b>, pilih tanggal sejak ${fmtDate(tglMulaiPinjaman())}. Tanggal lampau = data lama (stok & batas satu pinjaman aktif tidak diperiksa).</span></div>`}
         <div id="lfUang" class="fg"><label>Nominal pengajuan pinjaman <span class="req">*</span></label><div class="inp-group"><span class="addon rp">Rp</span><input class="inp money-inp" name="Pokok" data-money inputmode="numeric" placeholder="0" value="${d.Pokok ? fmtNum(d.Pokok) : ''}"></div>
           <div class="row-between xs mt-1"><span><i class="bi bi-shield-check text-primary"></i> Batas plafon guru/staf: s.d. ${fmtRp(st0.PLAFON_UANG)}</span><span class="text-primary fw-600">Bunga ${fmtPct(Calc.rate('uang'))}% dari pokok</span></div>
           <span class="err-msg"></span><div class="label mt-2">Pilihan nominal cepat:</div><div class="chips">${[1000000, 2500000, 5000000, 10000000].map(v => `<button type="button" class="chip-btn" onclick="LoanForm.add(${v})">+${fmtJt(v)}</button>`).join('')}<button type="button" class="chip-btn" onclick="LoanForm.add(0)">Reset</button></div></div>
@@ -709,7 +710,9 @@ const LoanForm = {
     const idAng = LoanForm.member ? S.user.idAnggota : pickId(f.lfAng && f.lfAng.value);
     const brg = D.barang[f.ID_Barang.value], qty = Math.max(1, parseInt(f.Qty.value, 10) || 1);
     const pokok = jenis === 'uang' ? parseRp(f.Pokok.value) : brg ? num(brg.Harga_Jual) * qty : 0;
-    return { f, jenis, idAng, brg, qty, pokok, tenor: parseInt(f.Tenor.value, 10) || 0, persen: Calc.rate(jenis), Keperluan: f.Keperluan.value.trim() };
+    let tglAju = f.Tgl_Pengajuan ? f.Tgl_Pengajuan.value || T() : T();
+    if (tglAju > T()) tglAju = T();
+    return { f, jenis, idAng, brg, qty, pokok, tglAju, lama: tglAju < T(), tenor: parseInt(f.Tenor.value, 10) || 0, persen: Calc.rate(jenis), Keperluan: f.Keperluan.value.trim() };
   },
   /** Hitung ulang simulasi, validasi ringan & stepper — dipanggil setiap input (0 ms, lokal). */
   update(first) {
@@ -734,17 +737,19 @@ const LoanForm = {
     const first1 = addMonths(T(), 1, tglPotong());
     const sch = Calc.jadwal({ ID_Pinjaman: 'SIM', Tenor: tenor, Pokok: h.pokok, Total_Bunga: h.totalBunga }, T());
     document.getElementById('lfSched').innerHTML = h.pokok ? `<div class="table-wrap mt-2"><table class="tbl"><thead><tr><th>#</th><th>Jatuh tempo</th><th class="num">Pokok</th><th class="num">Bunga</th><th class="num">Total</th></tr></thead><tbody>${sch.map(x => `<tr><td>${x.Cicilan_Ke}</td><td>${fmtDate(x.Jatuh_Tempo)}</td><td class="num">${fmtNum(x.Pokok)}</td><td class="num">${fmtNum(x.Bunga)}</td><td class="num fw-600">${fmtNum(x.Total)}</td></tr>`).join('')}</tbody></table></div><div class="xs muted mt-1">Perkiraan; cicilan pertama ±${fmtDate(first1)} setelah dana/barang dicairkan.</div>` : '';
+    [...f.ID_Barang.options].forEach(o => { const b = D.barang[o.value]; if (b) o.disabled = !r.lama && num(b.Stok) <= 0; });
     if (r.brg) document.getElementById('lfSpec').innerHTML = `${esc(r.brg.Spesifikasi || r.brg.Kategori)} · stok <b>${r.brg.Stok}</b> ${esc(r.brg.Satuan)}`;
     // Validasi informatif (aturan sama dengan server)
     const warn = [];
     if (r.idAng) {
       const a = D.anggota[r.idAng];
       if (a && a.Status !== 'aktif') warn.push('Anggota berstatus nonaktif tidak dapat mengajukan pembiayaan.');
-      if (String(S.settings.SATU_PINJAMAN_AKTIF) === 'ya') { const ak = (D.loansByAng[r.idAng] || []).find(l => l.Jenis === r.jenis && ['diajukan', 'disetujui', 'berjalan'].includes(l.Status)); if (ak) warn.push(`Masih ada pinjaman ${r.jenis} aktif (${ak.ID_Pinjaman}, ${ak.Status}). Aturan koperasi: satu pinjaman sejenis aktif per anggota.`); }
+      if (String(S.settings.SATU_PINJAMAN_AKTIF) === 'ya' && !r.lama) { const ak = (D.loansByAng[r.idAng] || []).find(l => l.Jenis === r.jenis && ['diajukan', 'disetujui', 'berjalan'].includes(l.Status)); if (ak) warn.push(`Masih ada pinjaman ${r.jenis} aktif (${ak.ID_Pinjaman}, ${ak.Status}). Aturan koperasi: satu pinjaman sejenis aktif per anggota.`); }
       if (!LoanForm.member) { const info = document.getElementById('lfAngInfo'); const s = D.saldo[r.idAng] || {}; if (info && a) info.innerHTML = `${esc(a.Jabatan || '')} · simpanan ${fmtRp(s.total || 0)} · bergabung ${masaGabung(a.Tgl_Bergabung)}`; }
     }
     if (r.jenis === 'uang' && r.pokok > num(S.settings.PLAFON_UANG)) warn.push('Nominal melebihi plafon ' + fmtRp(S.settings.PLAFON_UANG) + '.');
-    if (r.jenis === 'barang' && r.brg && r.qty > num(r.brg.Stok)) warn.push('Stok ' + r.brg.Nama + ' tidak mencukupi (tersedia ' + r.brg.Stok + ').');
+    if (r.f.Tgl_Pengajuan && r.tglAju < tglMulaiPinjaman()) warn.push('Tanggal pengajuan paling awal ' + fmtDate(tglMulaiPinjaman()) + '.');
+    if (r.jenis === 'barang' && !r.lama && r.brg && r.qty > num(r.brg.Stok)) warn.push('Stok ' + r.brg.Nama + ' tidak mencukupi (tersedia ' + r.brg.Stok + ').');
     document.getElementById('lfWarn').innerHTML = warn.map(w => `<div class="info-box warn"><i class="bi bi-exclamation-triangle"></i><div>${esc(w)}</div></div>`).join('');
     const s1 = !!r.jenis, s2 = r.pokok > 0 && tenor > 0 && (LoanForm.member || !!r.idAng), s3 = f.setuju.checked;
     document.getElementById('lfStep').innerHTML = [['Jenis', s1], ['Detail & Hitung', s2], ['Konfirmasi', s3]].map((x, i, arr) => {
@@ -756,22 +761,22 @@ const LoanForm = {
   /** Draf tersimpan otomatis di perangkat (Instant UX: tidak ada data hilang). */
   draft(notify) {
     const r = LoanForm.read(); if (!r) return;
-    Store.lset(LoanForm.key(), { Jenis: r.jenis, Pokok: r.jenis === 'uang' ? r.pokok : 0, ID_Barang: r.f.ID_Barang.value, Qty: r.qty, Tenor: parseInt(r.f.Tenor.value, 10), Keperluan: r.Keperluan, lfAngId: r.idAng || '' });
+    Store.lset(LoanForm.key(), { Tgl_Pengajuan: r.f.Tgl_Pengajuan ? r.tglAju : '', Jenis: r.jenis, Pokok: r.jenis === 'uang' ? r.pokok : 0, ID_Barang: r.f.ID_Barang.value, Qty: r.qty, Tenor: parseInt(r.f.Tenor.value, 10), Keperluan: r.Keperluan, lfAngId: r.idAng || '' });
     if (notify) toast('Draf pengajuan tersimpan di perangkat ini.', 'success');
   },
   submit(member) {
     const r = LoanForm.read();
     const rules = { Pokok: v => r.jenis === 'uang' && !(parseRp(v) >= 100000) ? 'Nominal minimal Rp 100.000' : r.jenis === 'uang' && parseRp(v) > num(S.settings.PLAFON_UANG) ? 'Melebihi plafon' : '',
-      ID_Barang: v => r.jenis === 'barang' && !v ? 'Pilih barang dari katalog' : r.jenis === 'barang' && r.brg && r.qty > num(r.brg.Stok) ? 'Stok tidak cukup' : '' };
+      ID_Barang: v => r.jenis === 'barang' && !v ? 'Pilih barang dari katalog' : r.jenis === 'barang' && !r.lama && r.brg && r.qty > num(r.brg.Stok) ? 'Stok tidak cukup' : '' };
     if (!member) rules.lfAng = v => pickId(v) ? '' : 'Pilih anggota dari daftar';
     const data = Form.check(r.f, rules);
     if (!data) return;
     if (document.getElementById('lfWarn').children.length) { toast('Periksa kembali peringatan pada formulir.', 'warning'); document.getElementById('lfWarn').scrollIntoView({ block: 'center', behavior: 'smooth' }); return; }
     const tenor = parseInt(r.f.Tenor.value, 10), h = Calc.pinjaman(r.pokok, r.persen, tenor), tmp = uid();
     const file = member && r.f.lampiran && r.f.lampiran.files[0];
-    const loan = { ID_Pinjaman: tmp, ID_Anggota: r.idAng, Jenis: r.jenis, Tgl_Pengajuan: T(), Tgl_Cair: '', Pokok: r.pokok, HPP: r.brg ? num(r.brg.Harga_Beli) * r.qty : 0, ID_Barang: r.jenis === 'barang' ? r.brg.ID_Barang : '', Qty: r.jenis === 'barang' ? r.qty : 0,
+    const loan = { ID_Pinjaman: tmp, ID_Anggota: r.idAng, Jenis: r.jenis, Tgl_Pengajuan: r.tglAju, Tgl_Cair: '', Pokok: r.pokok, HPP: r.brg ? num(r.brg.Harga_Beli) * r.qty : 0, ID_Barang: r.jenis === 'barang' ? r.brg.ID_Barang : '', Qty: r.jenis === 'barang' ? r.qty : 0,
       Tenor: tenor, Bunga_Persen: r.persen, Total_Bunga: h.totalBunga, Total_Tagihan: h.total, Angsuran_per_Bulan: h.angsuran, Sisa_Tagihan: h.total, Status: 'diajukan', Disetujui_Oleh: '', No_Perjanjian: '', Keperluan: r.Keperluan, Catatan: '', Diajukan_Oleh: S.user.nama, _pending: true };
-    commit({ action: 'pinjaman.ajukan', quiet: true, payload: { tmpId: tmp, Jenis: r.jenis, ID_Anggota: r.idAng, Pokok: r.pokok, ID_Barang: loan.ID_Barang, Qty: loan.Qty, Tenor: tenor, Keperluan: r.Keperluan }, tables: ['pinjaman'], label: 'Pengajuan pinjaman',
+    commit({ action: 'pinjaman.ajukan', quiet: true, payload: { tmpId: tmp, Jenis: r.jenis, ID_Anggota: r.idAng, Tgl_Pengajuan: r.tglAju, Pokok: r.pokok, ID_Barang: loan.ID_Barang, Qty: loan.Qty, Tenor: tenor, Keperluan: r.Keperluan }, tables: ['pinjaman'], label: 'Pengajuan pinjaman',
       apply: () => S.db.pinjaman.push(loan),
       ok: () => { if (file) LoanForm.upload(file, r.idAng); } });
     Store.lset(LoanForm.key(), {});
@@ -876,7 +881,8 @@ Pages.pinjamanDetail = {
       <div class="p-3 stack"><div><div class="row-between mb-2"><span class="label">Validasi parameter kepatuhan</span><span class="xs fw-600 ${lolos === checks.length ? 'text-success' : 'text-warning'}">${lolos}/${checks.length} lolos</span></div>
         <ul class="check-list">${checks.map(c => `<li class="${c[0]}"><i class="bi ${icon[c[0]]}"></i><span>${esc(c[1])}</span></li>`).join('')}</ul></div>
         <div class="fg"><label for="pdCat">Catatan pertimbangan komite</label><textarea id="pdCat" class="inp" rows="2" placeholder="mis. Riwayat angsuran baik, rasio aman. Disetujui pencairan penuh.">${esc(l.Catatan || '')}</textarea></div>
-        <div class="fg"><label for="pdTgl">Tanggal pencairan / serah terima</label><input id="pdTgl" class="inp" type="date" value="${T()}" max="${addDays(T(), 31)}"></div>
+        <div class="fg"><label for="pdTgl">Tanggal akad / pencairan / serah terima</label><input id="pdTgl" class="inp" type="date" value="${T()}" min="${[tglMulaiPinjaman(), String(l.Tgl_Pengajuan || '')].sort().pop()}" max="${addDays(T(), 31)}" onchange="Pages.pinjamanDetail.lama('${esc(l.ID_Pinjaman)}')"><span class="hint">Data pinjaman lama: pilih tanggal sejak ${fmtDate([tglMulaiPinjaman(), String(l.Tgl_Pengajuan || '')].sort().pop())}.</span></div>
+        <div id="pdLama"></div>
         ${l.Status === 'diajukan' ? `<button class="btn btn-primary btn-lg btn-block" ${on('Pages.pinjamanDetail.proses', l.ID_Pinjaman, 'setujui_cairkan')}><i class="bi bi-check-circle"></i> Setujui & Cairkan</button>
           <button class="btn btn-info-soft btn-block" ${on('Pages.pinjamanDetail.proses', l.ID_Pinjaman, 'setujui')}><i class="bi bi-patch-check"></i> Setujui (cairkan nanti)</button>`
         : `<button class="btn btn-primary btn-lg btn-block" ${on('Pages.pinjamanDetail.proses', l.ID_Pinjaman, 'cairkan')}><i class="bi bi-cash-stack"></i> Cairkan Sekarang</button>`}
@@ -884,18 +890,31 @@ Pages.pinjamanDetail = {
         <div class="info-box"><i class="bi bi-info-circle"></i><div class="xs">Setelah disetujui, nomor akad resmi (${esc(String(S.settings[l.Jenis === 'uang' ? 'FMT_AKAD_UANG' : 'FMT_AKAD_BARANG'] || '').replace(/\{.*$/, '…'))}) terbit otomatis. Saat dicairkan, jadwal angsuran dibuat${l.Jenis === 'barang' ? ' dan stok barang berkurang (qabdh)' : ''}.</div></div>
       </div></div></div>`;
   },
+  /** Opsi data lama (tanggal lampau): jumlah cicilan yang sudah dibayar & kurangi stok barang. */
+  lama(id) {
+    const l = D.loans[id], box = document.getElementById('pdLama'); if (!l || !box) return;
+    const tgl = (document.getElementById('pdTgl') || {}).value || T();
+    if (tgl >= T()) { box.innerHTML = ''; return; }
+    const jatuh = Calc.jadwal(l, tgl).filter(r => r.Jatuh_Tempo <= T()).length;
+    box.innerHTML = `<div class="info-box warn"><i class="bi bi-clock-history"></i><div class="xs"><b>Input data pinjaman lama.</b> Jadwal dibuat mulai ${fmtDate(tgl)}; ${jatuh} cicilan sudah jatuh tempo s.d. hari ini. Tidak ada email notifikasi yang dikirim.</div></div>
+      <div class="fg"><label for="pdBayar">Cicilan yang sudah dibayar sebelum aplikasi dipakai</label><div class="inp-group"><input id="pdBayar" class="inp" type="number" min="0" max="${jatuh}" value="${jatuh}"><span class="addon">dari ${l.Tenor} cicilan</span></div><span class="hint">Dicatat lunas (potong gaji) per tanggal jatuh tempo masing-masing, maks. ${jatuh}. Isi 0 bila belum ada yang dibayar.</span></div>
+      ${l.Jenis === 'barang' ? `<label class="check"><input type="checkbox" id="pdStok"> <span>Kurangi stok barang sekarang (biarkan tidak dicentang bila barang sudah diserahkan sebelum aplikasi dipakai)</span></label>` : ''}`;
+  },
   proses(id, aksi) {
     const l = D.loans[id]; if (!l) return;
     const catatan = (document.getElementById('pdCat') || {}).value || '', tgl = (document.getElementById('pdTgl') || {}).value || T();
+    const isLama = tgl < T(), elB = document.getElementById('pdBayar'), elS = document.getElementById('pdStok');
+    const sudahBayar = isLama && elB ? Math.max(0, parseInt(elB.value, 10) || 0) : 0;
+    const kurangiStok = !(isLama && l.Jenis === 'barang' && elS && !elS.checked);
     const run = (cat) => {
       const tmpMut = uid();
-      commit({ action: 'pinjaman.proses', payload: { ID_Pinjaman: id, aksi, Catatan: cat, Tgl_Cair: tgl, tmpId: tmpMut }, tables: ['pinjaman', 'angsuran', 'barang', 'mutasi'], label: 'Proses pinjaman',
+      commit({ action: 'pinjaman.proses', payload: { ID_Pinjaman: id, aksi, Catatan: cat, Tgl_Cair: tgl, sudahBayar, kurangiStok, tmpId: tmpMut }, tables: ['pinjaman', 'angsuran', 'barang', 'mutasi', 'pembayaran'], label: 'Proses pinjaman',
         apply: () => {
           const x = S.db.pinjaman.find(p => p.ID_Pinjaman === id);
           if (aksi === 'tolak') { x.Status = 'ditolak'; x.Catatan = cat; return; }
           if (aksi !== 'cairkan') { x.Status = 'disetujui'; x.Disetujui_Oleh = S.user.nama; x.No_Perjanjian = x.No_Perjanjian || '(menunggu nomor)'; if (cat) x.Catatan = cat; }
           if (aksi !== 'setujui') {
-            if (x.Jenis === 'barang') {
+            if (x.Jenis === 'barang' && kurangiStok) {
               const b = S.db.barang.find(z => z.ID_Barang === x.ID_Barang);
               if (!b || num(b.Stok) < x.Qty) throw new Error('Stok barang tidak cukup untuk dicairkan.');
               b.Stok = num(b.Stok) - x.Qty; x.HPP = num(b.Harga_Beli) * x.Qty;
@@ -912,7 +931,7 @@ Pages.pinjamanDetail = {
       return;
     }
     const labels = { setujui: 'Setujui pengajuan', cairkan: 'Cairkan pembiayaan', setujui_cairkan: 'Setujui & cairkan' };
-    confirmDialog({ title: labels[aksi] + '?', html: `<b>${esc(angName(l.ID_Anggota))}</b> — ${fmtRp(l.Pokok)} × ${l.Tenor} bulan<br>Angsuran ${fmtRp(l.Angsuran_per_Bulan)}/bulan${aksi !== 'setujui' ? '<br>Tanggal pencairan: ' + fmtDate(tgl) : ''}`, ok: labels[aksi], icon: 'bi-patch-check' })
+    confirmDialog({ title: labels[aksi] + '?', html: `<b>${esc(angName(l.ID_Anggota))}</b> — ${fmtRp(l.Pokok)} × ${l.Tenor} bulan<br>Angsuran ${fmtRp(l.Angsuran_per_Bulan)}/bulan${aksi !== 'setujui' ? '<br>Tanggal pencairan: ' + fmtDate(tgl) : ''}${isLama && aksi !== 'setujui' ? '<br><b>Data lama</b> — ' + sudahBayar + ' cicilan dicatat sudah dibayar' + (l.Jenis === 'barang' ? (kurangiStok ? ', stok dikurangi' : ', stok tidak dikurangi') : '') : ''}`, ok: labels[aksi], icon: 'bi-patch-check' })
       .then(ok => { if (ok) run(catatan); });
   },
   batal(id) {
@@ -1547,6 +1566,7 @@ Pages.pengaturan = {
     if (type === 'switch') return `<div class="row-between" style="padding:10px 0;border-bottom:1px solid var(--border)"><div><b class="small">${label}</b>${hint ? `<div class="xs muted">${hint}</div>` : ''}</div><label class="switch"><input type="checkbox" ${String(v) === 'ya' ? 'checked' : ''} onchange="Pages.pengaturan.set('${k}',this.checked?'ya':'tidak')" aria-label="${esc(label)}"><span></span></label></div>`;
     if (type === 'money') return `<div class="fg"><label>${label}</label><div class="inp-group"><span class="addon rp">Rp</span><input class="inp money-inp" data-money value="${fmtNum(v)}" oninput="Pages.pengaturan.set('${k}',parseRp(this.value))"></div>${hint ? `<span class="hint">${hint}</span>` : ''}</div>`;
     if (type === 'pct') return `<div class="fg"><label>${label} <span class="req">*</span></label><div class="inp-group"><input class="inp money-inp" type="number" step="0.5" min="0" max="100" value="${esc(v)}" oninput="Pages.pengaturan.set('${k}',this.value)"><span class="addon">% total</span></div>${hint ? `<span class="hint">${hint}</span>` : ''}</div>`;
+    if (type === 'date') return `<div class="fg ${extra || ''}"><label>${label}</label><input class="inp" type="date" max="${T()}" value="${esc(v)}" onchange="Pages.pengaturan.set('${k}',this.value)">${hint ? `<span class="hint">${hint}</span>` : ''}</div>`;
     return `<div class="fg ${extra || ''}"><label>${label}</label><input class="inp ${type === 'mono' ? 'mono' : ''}" type="${type === 'number' ? 'number' : 'text'}" value="${esc(v)}" oninput="Pages.pengaturan.set('${k}',this.value)">${hint ? `<span class="hint">${hint}</span>` : ''}</div>`;
   },
   /** Tenor yang diizinkan = rentang bulan minimal s.d. maksimal (j = 'UANG' | 'BARANG'). */
@@ -1574,6 +1594,7 @@ Pages.pengaturan = {
         <div class="form-grid cols-2">${F('BUNGA_TOTAL_UANG', 'Bunga koperasi (total)', 'pct', 'Persen dari besar pinjaman — sama untuk tenor berapa pun, dibagi rata tiap bulan')}${F('PLAFON_UANG', 'Plafon maksimal per pengajuan', 'money')}</div><div class="label mt-3 mb-2">Tenor yang diizinkan</div>${Pages.pengaturan.tenorBox('UANG')}</div>
       <div class="card-k mb-3"><div class="card-head"><div><h3><i class="bi bi-box-seam"></i> 2. Pembiayaan Pengadaan Barang (Murabahah)</h3><p>Margin toko & tenor</p></div>${badge("Murabahah Ri'ayah", 'b-gold')}</div>
         <div class="form-grid cols-2">${F('BUNGA_TOTAL_BARANG', 'Margin toko (total)', 'pct', 'Persen dari harga pembelian barang — sama untuk tenor berapa pun, dibagi rata tiap bulan')}${F('TGL_POTONG_GAJI', 'Tanggal potong gaji (angsuran)', 'number', 'Angsuran pinjaman uang & barang dipotong gaji setiap tanggal ini (1–28)')}</div>${F('POTONG_OTOMATIS', 'Potong gaji otomatis setiap tanggal ' + tglPotong(), 'switch', 'Pukul 06.00 cicilan bulan berjalan dicatat terbayar (metode potong gaji): kwitansi terbit, sisa tagihan berkurang, email ke anggota. Tunggakan bulan sebelumnya tidak ikut.')}<div class="label mt-3 mb-2">Tenor yang diizinkan</div>${Pages.pengaturan.tenorBox('BARANG')}
+        ${F('TGL_MULAI_PINJAMAN', 'Tanggal paling awal data pinjaman', 'date', 'Tanggal pengajuan/akad/pencairan pinjaman uang & barang boleh diisi mulai tanggal ini (untuk memasukkan data pinjaman lama). Bawaan 1 Januari 2025.')}
         ${F('SATU_PINJAMAN_AKTIF', 'Batasi satu pinjaman sejenis yang aktif', 'switch', 'Anggota tidak boleh mengajukan jenis yang sama selama masih berjalan')}${F('DISKON_PELUNASAN', 'Diskon margin pada pelunasan dipercepat', 'switch', 'Bunga cicilan yang belum jatuh tempo dibebaskan (ibra\')')}</div>
       <div class="card-k"><div class="card-head"><div><h3><i class="bi bi-hourglass"></i> Aturan Sanksi Ta'zir (Infaq Keterlambatan)</h3><p>Nonaktif secara bawaan sesuai prinsip syariah</p></div></div>
         ${F('DENDA_AKTIF', 'Aktifkan denda keterlambatan', 'switch', 'Bila aktif, denda dihitung per minggu setelah masa tenggang')}<div class="form-grid cols-2 mt-3">${F('DENDA_NOMINAL', 'Nominal denda per minggu', 'money')}${F('DENDA_TENGGANG', 'Masa tenggang (hari)', 'number')}</div></div>`;
@@ -1669,7 +1690,7 @@ Pages.pengaturan = {
           S.settings = Object.assign({}, S.settings, ex.settings); Store.saveData();
           const dr = Pages.pengaturan.draft; if (dr) { dr.LOGO_FILE_ID = ex.settings.LOGO_FILE_ID; dr.LOGO_URL = ex.settings.LOGO_URL; }
         }
-        Logo.set(ex.logo || ''); Pages.pengaturan.logoPrev(false);
+        Logo.set(ex.logo || '', ex.settings ? ex.settings.LOGO_FILE_ID : undefined); Pages.pengaturan.logoPrev(false);
         toast(res.message, 'success', 'Logo disimpan');
       },
       fail: msg => { Logo.set(lama); Pages.pengaturan.logoPrev(false); toast(msg, 'danger', 'Logo tidak tersimpan'); } });
@@ -1932,7 +1953,7 @@ Pages.profil = {
         ${Pages.profil.row('bi-headset', 'Bantuan & Hubungi Bendahara', 'Konsultasi pembiayaan & data anggota', 'Pages.mBeranda.setor()')}
       </div></div>
       <button class="btn btn-danger-soft btn-lg btn-block" onclick="Auth.logout()"><i class="bi bi-box-arrow-right"></i> Keluar dari Akun SIMPEL-KOP</button>
-      <div class="text-center xs muted">SIMPEL-KOP v${esc(BOOT.version || '1.4.6')} • Berlandaskan Prinsip Syariah<br>${esc(S.settings.NAMA_KOPERASI || '')}</div></div></div>`;
+      <div class="text-center xs muted">SIMPEL-KOP v${esc(BOOT.version || '1.4.7')} • Berlandaskan Prinsip Syariah<br>${esc(S.settings.NAMA_KOPERASI || '')}</div></div></div>`;
   },
   gantiSandi(wajib) {
     Modal.open({ title: 'Ganti Kata Sandi', icon: 'bi-key', sub: wajib ? 'Demi keamanan, ganti sandi sementara Anda sekarang.' : 'Gunakan minimal 8 karakter kombinasi huruf & angka',

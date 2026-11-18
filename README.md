@@ -1,7 +1,7 @@
 # SIMPEL-KOP — Frontend (GitHub Pages)
 
 Sistem Informasi Simpan Pinjam & Barang — Koperasi Konsumen Syariah SMK Islam PB. Soedirman 2.
-Versi 1.4.6: frontend statis di GitHub Pages, backend Google Apps Script sebagai REST API (JSON).
+Versi 1.4.7: frontend statis di GitHub Pages, backend Google Apps Script sebagai REST API (JSON).
 
 ## Struktur
 

@@ -1,4 +1,4 @@
-# SIMPEL-KOP v1.4.6 — Panduan Instalasi (GAS REST API + GitHub Pages)
+# SIMPEL-KOP v1.4.8 — Panduan Instalasi (GAS REST API + GitHub Pages)
 
 Arsitektur baru:
 
@@ -22,11 +22,23 @@ Tidak ada lagi `Index.html`, `Stylesheet.html`, `JavaScript.html` di Apps Script
 
 Pilih **salah satu** jalur.
 
-### A0. Sudah memasang v1.4.0 – v1.4.5 (update ke v1.4.6 — hapus anggota, tenor 3–20 bln, bunga 10%/20%, potong gaji otomatis tgl 25, unggah logo)
+### A00. Sudah memasang v1.4.7 (update ke v1.4.8 — input data pinjaman lama mulai 1 Januari 2025)
+
+1. Ganti seluruh isi `Kode.gs` → **Manage deployments → ✏️ Edit → New version → Deploy**.
+2. Ganti berkas frontend (kecuali `js/config.js`), lalu `git add .` → `git commit -m "v1.4.8"` → `git push`.
+3. Tidak perlu menjalankan setup ulang. Pengaturan baru `TGL_MULAI_PINJAMAN` (bawaan `2025-01-01`) langsung berlaku dan bisa diubah di **Pengaturan → Pembiayaan**.
+
+**Cara memasukkan pinjaman lama (Admin/Bendahara):**
+1. **Pinjaman → Pengajuan baru** → isi **Tanggal pengajuan** (mis. 2025-03-10), anggota, jenis, nominal/barang, tenor → Kirim.
+   Tanggal lampau dianggap data lama: stok barang & aturan "satu pinjaman sejenis aktif" tidak diperiksa, email tidak dikirim. Nomor pengajuan ikut tahun/bulan tanggal tersebut (mis. `PJ-U/2025/03/001`).
+2. Buka detail pinjaman → isi **Tanggal akad / pencairan** (tidak boleh sebelum tanggal pengajuan) → muncul isian **Cicilan yang sudah dibayar** (otomatis = jumlah cicilan yang sudah jatuh tempo; ubah bila ada yang belum dibayar) dan, untuk barang, centang **Kurangi stok** hanya bila barang belum diserahkan.
+3. **Setujui & Cairkan** → jadwal angsuran dibuat dari tanggal pencairan; cicilan yang sudah dibayar dicatat lunas dengan kwitansi per tanggal jatuh tempo. Bila semua cicilan sudah dibayar, status langsung **LUNAS**. Cicilan lama yang tidak dicatat dibayar akan tampil sebagai tunggakan.
+
+### A0. Sudah memasang v1.4.0 – v1.4.6 (update ke v1.4.7 — hapus anggota, tenor 3–20 bln, bunga 10%/20%, potong gaji otomatis tgl 25, unggah logo)
 
 1. Ganti seluruh isi `Kode.gs` di editor Apps Script → **Manage deployments → ✏️ Edit → New version → Deploy**.
 2. Ganti berkas frontend di folder repo dengan isi ZIP baru (**jangan** timpa `js/config.js` Anda — atau isi ulang `GAS_URL`), lalu:
-   `git add .` → `git commit -m "v1.4.6"` → `git push`.
+   `git add .` → `git commit -m "v1.4.7"` → `git push`.
 3. Tenor 3–20 bulan, bunga 10% (uang) / 20% (barang), dan potong gaji tanggal 25 **langsung berlaku** setelah backend di-deploy — tidak perlu mengubah apa pun di Pengaturan. Baris lama `TENOR_UANG`, `TENOR_BARANG`, `BUNGA_UANG`, `BUNGA_BARANG`, `TGL_JATUH_TEMPO` di sheet Pengaturan tidak dipakai lagi dan boleh dihapus.
 
 ### A1. Sudah memakai SIMPEL-KOP v1.3.0 (data lama tetap dipakai)
@@ -55,10 +67,10 @@ Pilih **salah satu** jalur.
 Buka URL `/exec` di browser. Harus tampil JSON seperti:
 
 ```json
-{"success":true,"data":{"app":"SIMPEL-KOP","version":"1.4.6","ready":true,...},"message":"pong"}
+{"success":true,"data":{"app":"SIMPEL-KOP","version":"1.4.7","ready":true,...},"message":"pong"}
 ```
 
-Jika `"version"` bukan `1.4.6` atau yang tampil halaman aplikasi lama, berarti versi baru belum di-deploy (ulangi langkah Deploy → New version).
+Jika `"version"` bukan `1.4.7` atau yang tampil halaman aplikasi lama, berarti versi baru belum di-deploy (ulangi langkah Deploy → New version).
 
 > **Setiap kali `Kode.gs` diubah:** Manage deployments → ✏️ Edit → **New version** → Deploy. Jangan membuat *New deployment* — itu menghasilkan URL baru dan `js/config.js` harus diubah lagi.
 
@@ -119,7 +131,7 @@ Windows (PowerShell): `cd "$HOME\Downloads\simpel-kop"` lalu `dir`.
 ```bash
 git init
 git add .
-git commit -m "SIMPEL-KOP v1.4.6 frontend"
+git commit -m "SIMPEL-KOP v1.4.7 frontend"
 git branch -M main
 git remote add origin https://github.com/USERNAME/simpel-kop.git
 git push -u origin main
@@ -199,6 +211,8 @@ Bunga dihitung **sekali untuk seluruh akad** — tenor panjang atau pendek, tota
 - **Gunakan logo bawaan** → kembali ke logo khatam bawaan aplikasi.
 - Tips: pakai PNG berlatar transparan agar rapi di mode terang maupun gelap.
 - Kolom lama *URL logo* sudah diganti fitur unggah ini.
+- Perangkat lain yang sedang membuka aplikasi ikut berganti logo pada sinkronisasi berikutnya, atau saat aplikasi dibuka ulang.
+- **Logo tidak berganti / muncul "Logo tidak tersimpan"?** Hampir selalu karena `Kode.gs` di server belum versi terbaru. Admin akan melihat peringatan **"Backend perlu diperbarui"** bila versi server dan aplikasi berbeda — ganti isi `Kode.gs` lalu **Manage deployments → ✏️ Edit → New version → Deploy**, kemudian tekan **Ctrl+Shift+R** di browser.
 
 ## Pembayaran angsuran: dipotong gaji setiap tanggal 25
 

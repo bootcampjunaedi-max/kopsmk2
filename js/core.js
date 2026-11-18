@@ -1,6 +1,6 @@
 /**
  * ============================================================
- * SIMPEL-KOP — Frontend inti (js/core.js) • v1.4.6 GitHub Pages + GAS REST API
+ * SIMPEL-KOP — Frontend inti (js/core.js) • v1.4.8 GitHub Pages + GAS REST API
  * SPA murni + Instant UX:
  *  1. Semua halaman ada di DOM; navigasi = tampil/sembunyi section (0 ms, tanpa panggilan server)
  *  2. Optimistic UI: state lokal berubah seketika, sinkron ke server di latar (antrean + rollback)
@@ -15,6 +15,8 @@
 // ════════════════════════════════════════════════════════
 // BAGIAN 1: STATE GLOBAL
 // ════════════════════════════════════════════════════════
+/** Versi frontend — harus sama dengan APP.VERSION di Kode.gs (dicek otomatis, Admin diberi peringatan bila berbeda). */
+const FE_VERSION = '1.4.8';
 const BOOT = {};   // data publik dari GET ?action=boot (diisi oleh Boot.load, dicache di perangkat)
 const TABLES = ['anggota', 'simpanan', 'pinjaman', 'angsuran', 'pembayaran', 'barang', 'mutasi', 'biaya', 'pengguna', 'arsip', 'log'];
 const KEYS = { anggota: 'ID_Anggota', simpanan: 'ID_Transaksi', pinjaman: 'ID_Pinjaman', angsuran: 'ID_Angsuran', pembayaran: 'No_Bukti',
@@ -216,6 +218,7 @@ function loadPayload(d) {
   if (d.me) { S.user = Object.assign({}, S.user, d.me); }
   S.loaded = true;
   derive(); Store.saveData(); Notif.badge(); Nav.renderBadges();
+  try { Boot.cekLogo(); Boot.cekVersi(); } catch (e) { /* abaikan */ }
 }
 
 /** Simpan salinan tabel untuk rollback bila server menolak. */
@@ -624,11 +627,12 @@ const Logo = {
   /** Logo aktif: unggahan Admin (data URL dari server) → URL lama → '' (= logo khatam bawaan). */
   url() { return ((BOOT.koperasi || {}).logo) || (S.settings && S.settings.LOGO_URL) || ''; },
   /** Ganti logo di seluruh tampilan (setelah unggah/hapus) dan simpan ke cache data awal perangkat. */
-  set(u) {
-    BOOT.koperasi = Object.assign({}, BOOT.koperasi || {}, { logo: u || '' });
-    try { Store.lset('sk_boot', JSON.parse(JSON.stringify(BOOT))); } catch (e) { /* abaikan */ }
-    Logo.favicon();
-    if (S.token) Nav.build();
+  set(u, id) {
+    const k = Object.assign({}, BOOT.koperasi || {}, { logo: u || '' });
+    if (id !== undefined) k.logoId = id || '';
+    BOOT.koperasi = k;
+    try { Store.lset('sk_boot', JSON.parse(JSON.stringify(BOOT))); } catch (e) { /* penyimpanan penuh: tetap dipakai di memori */ }
+    Logo.refresh();
   },
   _fav: null,
   /** Ikon tab browser ikut memakai logo koperasi. */
@@ -639,7 +643,13 @@ const Logo = {
     l.setAttribute('type', u ? (u.match(/^data:([^;,]+)/) || [])[1] || 'image/png' : 'image/svg+xml');
     l.setAttribute('href', u || Logo._fav);
   },
-  html(size) { const u = Logo.url(); return u ? `<img src="${esc(u)}" alt="Logo koperasi" style="width:${size}px;height:${size}px;object-fit:contain">` : Logo.svg(size); },
+  /** Logo aktif sebagai elemen bertanda data-logo, agar bisa diperbarui di tempat oleh Logo.refresh(). */
+  html(size) { const u = Logo.url(); return u ? `<img data-logo="${size}" src="${esc(u)}" alt="Logo koperasi" style="width:${size}px;height:${size}px;object-fit:contain">` : Logo.svg(size).replace('<svg ', `<svg data-logo="${size}" `); },
+  /** Ganti SEMUA logo yang sedang tampil (menu, bilah atas, halaman masuk, pratinjau) + ikon tab. */
+  refresh() {
+    Logo.favicon();
+    document.querySelectorAll('[data-logo]').forEach(el => { const n = parseInt(el.getAttribute('data-logo'), 10) || 34; el.outerHTML = Logo.html(n); });
+  },
   _png: null,
   /** Logo bawaan sebagai PNG data URL (untuk dokumen PDF). */
   png() {
@@ -668,6 +678,8 @@ function loanBadge(l) {
 const jenisBadge = l => l.Jenis === 'barang' ? badge('Barang ' + fmtPct(Calc.loanPct(l)) + '%', 'b-gold', 'bi-box-seam') : badge('Uang ' + fmtPct(Calc.loanPct(l)) + '% Flat', 'b-green', 'bi-cash-coin');
 /** Tanggal potong gaji untuk angsuran pinjaman uang & barang (Pengaturan TGL_POTONG_GAJI), bawaan 25. */
 const tglPotong = () => num((S.settings || {}).TGL_POTONG_GAJI) || 25;
+/** Tanggal paling awal untuk data pinjaman (pengajuan/akad/pencairan) — bawaan 1 Januari 2025. */
+const tglMulaiPinjaman = () => { const v = String((S.settings || {}).TGL_MULAI_PINJAMAN || ''); return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '2025-01-01'; };
 /** Angka persen ringkas: 10 → "10", 12.5 → "12,5". */
 const fmtPct = x => String(Math.round(num(x) * 100) / 100).replace('.', ',');
 function rowBadge(r) {
@@ -846,7 +858,7 @@ const Nav = {
         if (m[4] && !m[4].includes(S.role)) return '';
         return `<li><button class="sb-link" data-nav="${m[0]}" ${on('Nav.go', m[0])} title="${esc(m[1])}"><i class="bi ${m[2]}"></i><span>${esc(m[1])}</span>${m[3] ? `<span class="sb-badge" data-badge="${m[3]}"></span><span class="sb-dot" data-dot="${m[3]}" hidden></span>` : ''}</button></li>`;
       }).join('');
-      document.getElementById('sbFoot').innerHTML = `<button class="sb-link sb-collapse" onclick="UI.collapse()" title="Lipat menu"><i class="bi bi-layout-sidebar-inset"></i><span>Lipat menu</span></button>SIMPEL-KOP v${esc(BOOT.version || '1.4.6')} • ${esc(S.settings.SEKOLAH || 'SMK Islam PB. Soedirman 2')}`;
+      document.getElementById('sbFoot').innerHTML = `<button class="sb-link sb-collapse" onclick="UI.collapse()" title="Lipat menu"><i class="bi bi-layout-sidebar-inset"></i><span>Lipat menu</span></button>SIMPEL-KOP v${esc(BOOT.version || '1.4.8')} • ${esc(S.settings.SEKOLAH || 'SMK Islam PB. Soedirman 2')}`;
     }
     const bottom = staff ? MENU.bottomStaff : MENU.bottomMember;
     document.getElementById('bottomNav').innerHTML = bottom.map(b => `<button class="bn-item" data-nav="${b[0]}" ${on('Nav.go', b[0])}><i class="bi ${b[2]}"></i><span>${esc(b[1])}</span>${b[0] === 'pinjaman' || b[0] === 'm-pinjaman' ? '<span class="bn-dot" data-dot="bn" hidden></span>' : ''}</button>`).join('');
@@ -1170,9 +1182,25 @@ const Boot = {
   },
   /** Data publik berubah (mis. Admin mematikan akun uji coba) → perbarui halaman masuk bila belum diisi. */
   changed() {
+    try { Logo.refresh(); } catch (e) { /* abaikan */ }
+    Boot.cekVersi();
     const v = document.getElementById('viewAuth');
     if (!v || v.hidden || S.token || Auth.dirty) return;
     Auth.renderLogin();
+  },
+  /** Peringatan bila Kode.gs di server lebih lama dari frontend (penyebab umum fitur baru "tidak tersimpan"). */
+  cekVersi() {
+    const sv = String(BOOT.version || ''), fe = typeof FE_VERSION === 'string' ? FE_VERSION : '';
+    if (!sv || !fe || sv === fe || !S.token || !canWrite() || Boot._warned === sv) return;
+    Boot._warned = sv;
+    toast('Server masih Kode.gs versi ' + sv + ', aplikasi versi ' + fe + '. Fitur baru bisa gagal tersimpan. Admin: ganti isi Kode.gs lalu Deploy → Manage deployments → Edit → New version.', 'warning', 'Backend perlu diperbarui');
+  },
+  /** Logo di server berbeda dari yang tampil (diganti di perangkat lain) → ambil data awal terbaru. */
+  cekLogo() {
+    const id = String((S.settings || {}).LOGO_FILE_ID || ''), now = String((BOOT.koperasi || {}).logoId || '');
+    if (!Boot.loaded || id === now || Boot._logoFetch === id) return;
+    Boot._logoFetch = id;
+    Boot.start().catch(() => { Boot._logoFetch = null; });
   }
 };
 
