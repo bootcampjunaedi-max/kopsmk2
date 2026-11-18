@@ -14,7 +14,7 @@
  *           Isi hanya jika memakai domain sendiri.
  * ============================================================
  */
-const GAS_URL = 'https://script.google.com/macros/s/PASTE_ID_DEPLOYMENT_DI_SINI/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzukl7fMkopTxnryqgYuGU44_JKgzmZDdm5nZlA1WIrykX_gYcSZv-qwK4KTA-Kt2EY/exec';
 
 const APP_URL = '';
 
