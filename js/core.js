@@ -368,6 +368,10 @@ const Calc = {
     const total = pokok + totalBunga;
     return { pokok, totalBunga, total, angsuran: Math.round(total / tenor), bungaBulan: Math.round(totalBunga / tenor), pokokBulan: Math.round(pokok / tenor) };
   },
+  /** Tanggal awal hitung jadwal: tanggal pencairan bila sudah cair, selain itu tanggal pengajuan (estimasi). */
+  mulai(loan) { return loan.Tgl_Cair || loan.Tgl_Pengajuan || T(); },
+  /** Jadwal riil (sudah cair) atau estimasi jadwal yang dimulai dari tanggal pengajuan. */
+  jadwalEstimasi(loan) { const r = (D.rows || {})[loan.ID_Pinjaman] || []; return r.length ? r : Calc.jadwal(loan, Calc.mulai(loan)); },
   jadwal(loan, tglCair) {
     const Tn = num(loan.Tenor), P = num(loan.Pokok), B = num(loan.Total_Bunga);
     const pp = Math.round(P / Tn), bb = Math.round(B / Tn), rows = [];
